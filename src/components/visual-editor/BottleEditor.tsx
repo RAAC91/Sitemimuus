@@ -1,0 +1,1619 @@
+
+"use client"
+
+import React, { useState, useCallback, useMemo, useRef } from 'react';
+import Link from 'next/link';
+import { generateStickerDesign, removeImageBackground } from '@/services/ai/gemini';
+import { SKUS, ICON_CATEGORIES, EDITOR_COLORS, FONTS, type EditorLayer } from './constants';
+import { Icons } from './Icons';
+import { useEditorHistory } from './useEditorHistory';
+import { BottlePreview } from './BottlePreview';
+import { TextControls } from './TextControls';
+import { ImageControls } from './ImageControls';
+import { BottleColorPicker } from './BottleColorPicker';
+import ProductRegistrationModal from '../admin/ProductRegistrationModal';
+import { CaptureCalibrationModal, CaptureConfig } from './CaptureCalibrationModal';
+import { useAuth } from '@/providers/AuthProvider';
+import { useAdmin } from '@/hooks/useAdmin';
+import { toast } from 'sonner';
+import { v4 as uuidv4 } from 'uuid';
+import { SelectedLayerHUD } from './SelectedLayerHUD';
+import { motion, AnimatePresence } from 'framer-motion';
+import { toCanvas } from 'html-to-image';
+import { createProduct } from '@/actions/admin-actions';
+import { getProductById } from '@/actions/product-actions';
+import { ShowcaseModal } from './ShowcaseModal';
+// useLayerPositionFallback removed
+import { CartItem } from '@/types';
+import { useCartStore } from '@/store/cartStore';
+// Duplicate import removed
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+
+// GAMIFICATION
+import { useGamification } from '@/context/GamificationContext';
+import { XPBar } from '../gamification/XPBar';
+import { XPToast } from '../gamification/XPToast';
+
+
+
+interface BottleEditorProps {
+    onAddToCart?: (item: CartItem) => void;
+    onCheckout?: () => void;
+    onBack?: () => void;
+    onCartOpen?: () => void;
+    isAdmin?: boolean;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    initialProduct?: any;
+    initialSku?: string;
+    productId?: string;
+}
+
+export const BottleEditor: React.FC<BottleEditorProps> = ({ onAddToCart, onBack, initialSku, isAdmin: isAdminProp, productId }) => {
+    
+    
+    // --- STATE ---
+    const [sku, setSku] = useState<string>(() => {
+        // Initial SKU safety check
+        if (initialSku && SKUS[initialSku]) return initialSku;
+        return 'Branco';
+    });
+    const [lidColor] = useState<string>('#000000');
+    const [layers, setLayers] = useState<EditorLayer[]>([]);
+    const [selectedLayerId, setSelectedLayerId] = useState<string | null>(null);
+    const [activeIconCat, setActiveIconCat] = useState(() => Object.keys(ICON_CATEGORIES)[0] ?? '');
+    const [isBusy, setIsBusy] = useState(false);
+    const [aiPrompt, setAiPrompt] = useState('');
+    const [isAiLoading, setIsAiLoading] = useState(false);
+    const [draftText, setDraftText] = useState('');
+    const [showShowcase, setShowShowcase] = useState(false);
+    const [showShareModal, setShowShareModal] = useState(false);
+    const [generatedPreview] = useState<string | null>(null);
+
+    
+    // POSITION CALIBRATION - Separate positions for each layer type
+    const isMobileViewport = () =>
+        typeof window !== 'undefined' && window.innerWidth < 1024;
+
+    const [defaultTextPosition, setDefaultTextPosition] = useState<{ x: number; y: number }>(() => {
+        if (typeof window !== 'undefined') {
+            const skuKey = `mimuus_default_position_text_${sku}`;
+            const genericKey = 'mimuus_default_position_text';
+            const saved = localStorage.getItem(skuKey) || localStorage.getItem(genericKey);
+            
+            // On mobile, use a safe default; on desktop, restore persisted value
+            if (isMobileViewport()) return { x: 50, y: 55 };
+            return saved ? JSON.parse(saved) : { x: 50, y: 90 };
+        }
+        return { x: 50, y: 90 };
+    });
+    
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const [defaultImagePosition, setDefaultImagePosition] = useState<{ x: number; y: number }>(() => {
+        if (typeof window !== 'undefined') {
+            const skuKey = `mimuus_default_position_image_${sku}`;
+            const genericKey = 'mimuus_default_position_image';
+            const saved = localStorage.getItem(skuKey) || localStorage.getItem(genericKey);
+            
+            // On mobile use centered safe default — desktop y:70 doesn't map to 1:1 canvas
+            if (isMobileViewport()) return { x: 50, y: 45 };
+            return saved ? JSON.parse(saved) : { x: 50, y: 70 };
+        }
+        return { x: 50, y: 70 };
+    });
+    
+    const [defaultIconPosition, setDefaultIconPosition] = useState<{ x: number; y: number }>(() => {
+        if (typeof window !== 'undefined') {
+            const skuKey = `mimuus_default_position_icon_${sku}`;
+            const genericKey = 'mimuus_default_position_icon';
+            const saved = localStorage.getItem(skuKey) || localStorage.getItem(genericKey);
+            
+            // On mobile use centered safe default — desktop-calibrated x/y don't apply
+            if (isMobileViewport()) return { x: 50, y: 45 };
+            return saved ? JSON.parse(saved) : { x: 63.1, y: 17.4 };
+        }
+        return { x: 63.1, y: 17.4 };
+    });
+    const [defaultIconSize, setDefaultIconSize] = useState(() => {
+        if (typeof window !== 'undefined') {
+            const skuKey = `mimuus_default_size_icon_${sku}`;
+            const genericKey = 'mimuus_default_size_icon';
+            const saved = localStorage.getItem(skuKey) || localStorage.getItem(genericKey);
+            
+            // On mobile scale down for the 1:1 square preview
+            if (isMobileViewport()) return 80;
+            return saved ? Number(saved) : 116;
+        }
+        return 116;
+    });
+    const [defaultIconRotation, setDefaultIconRotation] = useState(() => {
+        if (typeof window !== 'undefined') {
+            const skuKey = `mimuus_default_rotation_icon_${sku}`;
+            const genericKey = 'mimuus_default_rotation_icon';
+            const saved = localStorage.getItem(skuKey) || localStorage.getItem(genericKey);
+            
+            // On mobile never apply the desktop-calibrated rotation (e.g. -90°)
+            if (isMobileViewport()) return 0;
+            return saved ? Number(saved) : -90;
+        }
+        return -90;
+    });
+    const [showCalibration, setShowCalibration] = useState(false);
+    
+    // ADMIN FLOW - New simplified approach
+    const [showCapturePreview, setShowCapturePreview] = useState(false);
+    const [showAdminModal, setShowAdminModal] = useState(false);
+    const [adminPreviewImage, setAdminPreviewImage] = useState<string | null>(null);
+
+    // AUTH
+    const { user } = useAuth();
+    const { isAdmin: isSystemAdmin } = useAdmin();
+    const isAdmin = isAdminProp || isSystemAdmin;
+    
+    // Silent admin detection — no visible indicators
+    React.useEffect(() => {
+        if (user?.email && isAdmin) {
+            // Admin features are silently available
+        }
+    }, [user, isAdmin]);
+
+    // Recalculate text position when viewport changes (e.g. orientation flip)
+    React.useEffect(() => {
+        const handleResize = () => {
+            setDefaultTextPosition(prev => {
+                const mobile = isMobileViewport();
+                if (mobile && prev.y > 80) return { x: 50, y: 55 };
+                if (!mobile && prev.y < 80) return { x: 50, y: 90 };
+                return prev;
+            });
+        };
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+
+    // Mobile scroll container ref
+    const mobileScrollRef = useRef<HTMLDivElement>(null);
+
+    // Auto-scroll to relevant section removed as per user request to avoid losing sight of the bottle
+
+    // --- ADMIN: POSITION PERSISTENCE ---
+    const handleRecordDefault = (layer: EditorLayer) => {
+        if (!isAdmin) return;
+        
+        const type = layer.type === 'icon' ? 'icon' : (layer.type === 'image' ? 'image' : 'text');
+        const baseKey = `mimuus_default_position_${type}`;
+        const skuKey = `${baseKey}_${sku}`;
+        
+        const posData = { x: layer.x, y: layer.y };
+        localStorage.setItem(skuKey, JSON.stringify(posData));
+        localStorage.setItem(baseKey, JSON.stringify(posData)); // Update generic fallback too
+        
+        if (type === 'icon') {
+            localStorage.setItem(`mimuus_default_size_icon_${sku}`, String(layer.size));
+            localStorage.setItem(`mimuus_default_size_icon`, String(layer.size));
+            localStorage.setItem(`mimuus_default_rotation_icon_${sku}`, String(layer.rotation || 0));
+            localStorage.setItem(`mimuus_default_rotation_icon`, String(layer.rotation || 0));
+            
+            setDefaultIconPosition(posData);
+            setDefaultIconSize(layer.size);
+            setDefaultIconRotation(layer.rotation || 0);
+        } else if (type === 'text') {
+            setDefaultTextPosition(posData);
+        } else if (type === 'image') {
+            setDefaultImagePosition(posData);
+        }
+        
+        console.log(`[ADMIN] Padrões salvos para ${sku}:`, { type, posData, size: layer.size, rotation: layer.rotation });
+        alert(`Calibração de "${type}" gravada com sucesso para o produto: ${sku}`);
+    };
+    /*
+    useEffect(() => {
+        if (!selectedLayerId || !mobileScrollRef.current) return;
+        if (typeof window === 'undefined' || window.innerWidth >= 1024) return;
+        const layer = layers.find(l => l.id === selectedLayerId);
+        if (!layer) return;
+        const sectionId = layer.type === 'text' ? 'mobile-section-text' : 'mobile-section-images';
+        const section = document.getElementById(sectionId);
+        if (section && mobileScrollRef.current) {
+            const scrollTop = section.offsetTop - 12;
+            mobileScrollRef.current.scrollTo({ top: scrollTop, behavior: 'smooth' });
+        }
+    }, [selectedLayerId, layers]);
+    */
+
+    // GAMIFICATION
+    const { addXP } = useGamification();
+    const { addItem } = useCartStore();
+
+    // Load Design logic
+    React.useEffect(() => {
+        if (productId) {
+            const loadDesign = async () => {
+                setIsBusy(true);
+                try {
+                    const product = await getProductById(productId);
+                    if (product && product.metadata) {
+                        if (Array.isArray(product.metadata.layers)) {
+                             setLayers(product.metadata.layers);
+                        }
+                        if (product.metadata.sku && typeof product.metadata.sku === 'string') {
+                             setSku(product.metadata.sku);
+                        }
+                        if (product.metadata.layers) {
+                             toast.success("Design carregado com sucesso!");
+                        }
+                    }
+                } catch (error) {
+                    console.error("Failed to load design", error);
+                    toast.error("Erro ao carregar design.");
+                } finally {
+                    setIsBusy(false);
+                }
+            };
+            loadDesign();
+        }
+    }, [productId]);
+
+    // HISTORY
+    const currentState = useMemo(() => ({ sku, layers, selectedLayerId }), [sku, layers, selectedLayerId]);
+    const { undo, redo, canUndo, canRedo } = useEditorHistory(currentState);
+
+
+    // FALLBACK AUTOMÁTICO - Corrige layers fora de posição
+    // TODO: Mover para depois de updateLayer ser definido
+    // useLayerPositionFallback(layers, updateLayer, {
+    //     centerX: 50,
+    //     centerY: 50,
+    //     minX: 5,
+    //     maxX: 95,
+    //     minY: 5,
+    //     maxY: 95
+    // });
+
+
+    // --- FUNÇÕES DE CAMADA ---
+    const addLayer = useCallback((layer: EditorLayer) => {
+        setLayers(prev => [...prev, layer]);
+        setSelectedLayerId(layer.id);
+        
+        // XP Reward
+        if (layer.type === 'text') addXP(50, 'Nova Camada de Texto');
+        if (layer.type === 'image') addXP(100, 'Upload de Imagem');
+        if (layer.type === 'icon') addXP(30, 'Novo Sticker');
+    }, [addXP]);
+
+    const updateLayer = useCallback((id: string, updates: Partial<EditorLayer>) => {
+        setLayers(prev => prev.map(l => l.id === id ? { ...l, ...updates } : l));
+    }, []);
+
+    const deleteLayer = useCallback((id: string) => {
+        setLayers(prev => prev.filter(l => l.id !== id));
+        if (selectedLayerId === id) setSelectedLayerId(null);
+        toast.success('Camada removida');
+    }, [selectedLayerId]);
+
+    const duplicateLayer = useCallback((id: string) => {
+        const layer = layers.find(l => l.id === id);
+        if (layer) {
+            const newLayer = { 
+                ...layer, 
+                id: uuidv4(), 
+                x: Math.min(95, layer.x + 5), 
+                y: Math.min(95, layer.y + 5) 
+            };
+            setLayers(prev => [...prev, newLayer]);
+            setSelectedLayerId(newLayer.id);
+            toast.success('Camada duplicada!');
+        }
+    }, [layers]);
+
+    const moveLayerUp = useCallback((id: string) => {
+        setLayers(prev => {
+            const index = prev.findIndex(l => l.id === id);
+            if (index === -1 || index === prev.length - 1) return prev;
+            const newLayers = [...prev];
+            [newLayers[index], newLayers[index + 1]] = [newLayers[index + 1], newLayers[index]];
+            return newLayers;
+        });
+    }, []);
+
+    const moveLayerDown = useCallback((id: string) => {
+        setLayers(prev => {
+            const index = prev.findIndex(l => l.id === id);
+            if (index === -1 || index === 0) return prev;
+            const newLayers = [...prev];
+            [newLayers[index], newLayers[index - 1]] = [newLayers[index - 1], newLayers[index]];
+            return newLayers;
+        });
+    }, []);
+
+    const handleSelectLayer = useCallback((id: string | null) => {
+        setSelectedLayerId(id);
+    }, []);
+
+    // --- ADMIN ACTIONS ---
+    const handleAdminClick = () => {
+        if (isBusy) return;
+        setSelectedLayerId(null);
+        setShowCapturePreview(true); // Show preview modal first!
+    };
+
+    const handleConfirmCapture = async (config: CaptureConfig) => {
+        setIsBusy(true);
+        const toastId = toast.loading('Capturando...');
+
+        const originalSrcs = new Map<HTMLImageElement, string>();
+        try {
+            // Target the VISIBLE preview modal element
+            const captureElement = document.getElementById('capture-preview-target');
+            if (!captureElement) throw new Error('Preview não encontrado');
+
+            // Pre-load ALL fonts before capture so html-to-image can embed them correctly.
+            // Without this, CSS variable fonts (--font-*) may not be resolved in the canvas.
+            try {
+                await document.fonts.ready;
+                const fontFaces = Array.from(document.fonts);
+                await Promise.all(fontFaces.map(f => f.load().catch(() => null)));
+            } catch {
+                // Font pre-loading is best-effort; continue even if it partially fails
+            }
+
+            // Extra delay after font pre-load to ensure render is fully settled
+            await new Promise(r => setTimeout(r, 500));
+
+            // Capture the visible element with the configured dimensions.
+            // Note: fontEmbedCSS is intentionally NOT set to '' — we let html-to-image
+            // embed fonts automatically so custom fonts appear in the captured image.
+            // Pre-convert all external <img> to inline base64 data URLs.
+            // This prevents tainted canvas (cross-origin) AND avoids the
+            // html-to-image cacheBust bug that corrupts blob: URLs with ?timestamp.
+            const imgElements = Array.from(captureElement.querySelectorAll('img')) as HTMLImageElement[];
+
+            await Promise.all(
+                imgElements.map(async (img) => {
+                    const src = img.getAttribute('src') || '';
+                    if (!src || src.startsWith('data:')) return;
+                    try {
+                        const res = await fetch(src, { mode: 'cors', cache: 'force-cache' });
+                        if (!res.ok) return;
+                        const blob = await res.blob();
+                        // Convert blob → base64 data URL (html-to-image skips data: URLs entirely)
+                        const dataUrlInline = await new Promise<string>((resolve, reject) => {
+                            const reader = new FileReader();
+                            reader.onload = () => resolve(reader.result as string);
+                            reader.onerror = reject;
+                            reader.readAsDataURL(blob);
+                        });
+                        originalSrcs.set(img, src);
+                        img.src = dataUrlInline;
+                        // Wait for browser to decode the new src
+                        await new Promise<void>((resolve) => {
+                            if (img.complete) { resolve(); return; }
+                            img.onload = () => resolve();
+                            img.onerror = () => resolve();
+                        });
+                    } catch {
+                        // Fetch failed — leave original src (best-effort)
+                    }
+                })
+            );
+
+            const canvas = await toCanvas(captureElement, {
+                pixelRatio: 2,
+                backgroundColor: '#ffffff',
+                // cacheBust removido: corrompía blob/data URLs ao adicionar ?timestamp
+                width: config.width,
+                height: config.height,
+                // skipFonts: evita SecurityError ao tentar ler cssRules de
+                // stylesheets cross-origin (Google Fonts). Fontes já foram
+                // pré-carregadas acima via document.fonts.ready.
+                skipFonts: true,
+            });
+
+
+
+            // Tenta obter o DataURL, se falhar, provavelmente é Tainted Canvas
+            let dataUrl;
+            try {
+                dataUrl = canvas.toDataURL('image/png', 1.0);
+            } catch (e) {
+                console.error("Erro ao gerar DataURL (Provável Tainted Canvas):", e);
+                // Tente novamente sem CORS como fallback, ou avise o usuário
+                throw new Error("Falha de segurança na imagem. Tente recarregar a página.");
+            }
+
+            // Close preview modal and open registration modal
+            setShowCapturePreview(false);
+            setAdminPreviewImage(dataUrl);
+            setShowAdminModal(true);
+            toast.success('Capturado!', { id: toastId });
+        } catch (err) {
+            console.error('ERRO NA CAPTURA:', err);
+            const errorMessage = err instanceof Error ? err.message : 'Erro desconhecido';
+            toast.error(`Erro: ${errorMessage}. Tente novamente ou contate o suporte if persists.`, { id: toastId });
+            setShowCapturePreview(false);
+        } finally {
+            // Restore original img srcs no matter what
+            originalSrcs.forEach((src, img) => { img.src = src; });
+            setIsBusy(false);
+        }
+    };
+
+
+    // Keyboard Shortcuts & Paste Handling
+    const [clipboard, setClipboard] = useState<EditorLayer | null>(null);
+    React.useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') return;
+
+            if (e.key === 'Delete' || e.key === 'Backspace') {
+                if (selectedLayerId) deleteLayer(selectedLayerId);
+            }
+            if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
+                const layer = layers.find(l => l.id === selectedLayerId);
+                if (layer) { setClipboard(layer); toast.success('Copiado!'); }
+            }
+            if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
+                if (clipboard) {
+                    const newLayer = { ...clipboard, id: uuidv4(), x: clipboard.x + 5, y: clipboard.y + 5 };
+                    addLayer(newLayer);
+                }
+            }
+        };
+
+        const handlePaste = (e: ClipboardEvent) => {
+            if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') return;
+
+            const items = e.clipboardData?.items;
+            if (!items) return;
+
+            for (let i = 0; i < items.length; i++) {
+                if (items[i].type.indexOf('image') !== -1) {
+                    const blob = items[i].getAsFile();
+                    if (blob) {
+                        const reader = new FileReader();
+                        reader.onload = (ev) => {
+                            if (ev.target?.result) {
+                                addLayer({
+                                    id: uuidv4(), type: 'image', visible: true, content: ev.target.result as string,
+                                    size: 1000, rotation: 0, x: defaultImagePosition.x, y: defaultImagePosition.y, mode: 'center'
+                                });
+                                toast.success('Imagem colada com sucesso!');
+                            }
+                        };
+                        reader.readAsDataURL(blob);
+                        e.preventDefault();
+                        break;
+                    }
+                }
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        window.addEventListener('paste', handlePaste);
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+            window.removeEventListener('paste', handlePaste);
+        };
+    }, [selectedLayerId, clipboard, layers, deleteLayer, addLayer, defaultImagePosition]);
+
+    const handleAddText = (text: string) => {
+        const defaultColor = ['Branco', 'Lilás'].includes(sku) ? '#000000' : '#FFFFFF';
+        addLayer({
+            id: uuidv4(), type: 'text', visible: true, content: text,
+            font: 'Montserrat', color: defaultColor, size: 200, rotation: -90, x: defaultTextPosition.x, y: defaultTextPosition.y
+        });
+        setDraftText('');
+    };
+
+    const handleAddImage = (img: string) => {
+        addLayer({
+            id: uuidv4(), type: 'image', visible: true, content: img,
+            size: 1000, rotation: 0, x: defaultImagePosition.x, y: defaultImagePosition.y, mode: 'center'
+        });
+    };
+
+    const handleAddIcon = (url: string) => {
+        addLayer({
+            id: uuidv4(), type: 'icon', visible: true, content: url, size: defaultIconSize, rotation: defaultIconRotation, x: defaultIconPosition.x, y: defaultIconPosition.y
+        });
+    };
+
+    const handleAiGenerate = async () => {
+        if (!aiPrompt.trim()) return;
+        setIsAiLoading(true);
+        try {
+            const res = await generateStickerDesign(aiPrompt);
+            addLayer({
+                id: uuidv4(), type: 'image', visible: true, content: res,
+                size: 1000, rotation: 0, x: defaultImagePosition.x, y: defaultImagePosition.y, mode: 'center', isBgClean: true 
+            });
+            setAiPrompt('');
+            addXP(200, 'Criador IA');
+        } catch (error) { console.error(error); alert('Erro IA'); }
+        finally { setIsAiLoading(false); }
+    };
+
+    const handleAiBackgroundRemoval = async (id: string) => {
+        const layer = layers.find(l => l.id === id);
+        if (!layer) return;
+        setIsBusy(true);
+        try {
+            const clean = await removeImageBackground(layer.content);
+            updateLayer(id, { content: clean, isBgClean: true });
+        } catch (error) { console.error(error); }
+        finally { setIsBusy(false); }
+    };
+
+    const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            const reader = new FileReader();
+            reader.onload = (ev) => { if (ev.target?.result) handleAddImage(ev.target.result as string); };
+            reader.readAsDataURL(e.target.files[0]);
+        }
+    };
+
+    const handleAddToCart = async () => {
+        setIsBusy(true);
+        const toastId = toast.loading('Gerando preview do seu design...');
+        
+        const originalSrcs = new Map<HTMLImageElement, string>();
+        try {
+            // Pre-load fonts
+            try {
+                await document.fonts.ready;
+                const fontFaces = Array.from(document.fonts);
+                await Promise.all(fontFaces.map(f => f.load().catch(() => null)));
+            } catch { /* best effort */ }
+
+            const getVal = (key: string, def: string) => {
+                return localStorage.getItem(`mimuus_capture_${sku}_${key}`) || 
+                       localStorage.getItem(`mimuus_capture_${key}`) || 
+                       def;
+            };
+
+            const config = {
+                width: parseInt(getVal('width', '800')),
+                height: parseInt(getVal('height', '1000')),
+                margin: parseFloat(getVal('margin', '0')),
+                zoom: parseFloat(getVal('zoom', '1.2')),
+                yPosition: parseFloat(getVal('y_position', '50')),
+            };
+
+            // Capture the hidden checkout preview
+            let previewUrl = SKUS[sku].img;
+
+            // Give it a tiny bit of time to ensure it's in the DOM properly if just rendered
+            await new Promise(r => setTimeout(r, 200));
+            
+            const captureElement = document.getElementById('checkout-capture-target');
+            if (captureElement) {
+                // Convert images to base64 to avoid CORS/tainted canvas
+                const imgElements = Array.from(captureElement.querySelectorAll('img')) as HTMLImageElement[];
+                await Promise.all(
+                    imgElements.map(async (img) => {
+                        const src = img.getAttribute('src') || '';
+                        if (!src || src.startsWith('data:')) return;
+                        try {
+                            const res = await fetch(src, { mode: 'cors', cache: 'force-cache' });
+                            if (!res.ok) return;
+                            const blob = await res.blob();
+                            const dataUrlInline = await new Promise<string>((resolve, reject) => {
+                                const reader = new FileReader();
+                                reader.onload = () => resolve(reader.result as string);
+                                reader.onerror = reject;
+                                reader.readAsDataURL(blob);
+                            });
+                            originalSrcs.set(img, src);
+                            img.src = dataUrlInline;
+                            await new Promise<void>((resolve) => {
+                                if (img.complete) { resolve(); return; }
+                                img.onload = () => resolve();
+                                img.onerror = () => resolve();
+                            });
+                        } catch { /* best effort */ }
+                    })
+                );
+
+                const canvas = await toCanvas(captureElement, {
+                    pixelRatio: 2,
+                    backgroundColor: '#ffffff',
+                    width: config.width,
+                    height: config.height,
+                    skipFonts: true,
+                });
+                previewUrl = canvas.toDataURL('image/png', 0.9);
+            }
+
+            // Restore original srcs
+            originalSrcs.forEach((src, img) => {
+                img.src = src;
+            });
+
+
+            const fontsUsed = layers
+                .filter(l => l.type === 'text' && l.font)
+                .map(l => l.font)
+                .filter((value, index, self) => self.indexOf(value) === index);
+
+            const item: CartItem = {
+                id: uuidv4(),
+                productId: sku,
+                name: `Garrafa ${sku}`,
+                image: SKUS[sku].img, 
+                thumbnail: previewUrl,
+                price: 89.90,
+                quantity: 1,
+                customization: { 
+                    layers, 
+                    previewImage: previewUrl,
+                    uploadedImage: layers.find(l => l.type === 'image')?.content,
+                    textFont: fontsUsed.join(', '), // Save used fonts
+                    backgroundColor: SKUS[sku].color // Save base color
+                }
+            };
+
+            if (onAddToCart) {
+                onAddToCart(item);
+            } else {
+                addItem(item);
+                // Trigger Share Modal after adding to store directly
+                setShowShareModal(true);
+            }
+            
+            toast.success("Adicionado ao carrinho!", { id: toastId });
+            // Don't show showcase immediately if we want to ask for share
+            // setShowShowcase(true); 
+        } catch (error) {
+            console.error("Erro ao adicionar ao carrinho:", error);
+            toast.error("Erro ao gerar design. Tente novamente.", { id: toastId });
+        } finally {
+            setIsBusy(false);
+        }
+    };
+
+    // Derived: which type is the selected layer?
+    const selectedLayer = layers.find(l => l.id === selectedLayerId) ?? null;
+    const isPanelLeft  = selectedLayer?.type === 'image' || selectedLayer?.type === 'icon';
+    const isPanelRight = selectedLayer?.type === 'text';
+
+    return (
+        <div className="editor-shell text-slate-800 h-[100dvh] w-full flex flex-col overflow-hidden relative font-sans selection:bg-[#FF4586] selection:text-white z-50">
+            <XPToast />
+
+            {/* Header */}
+            <header className="h-14 editor-header border-b border-slate-200 flex justify-between items-center px-4 lg:px-6 z-50 relative shrink-0">
+                {/* LEFT: Back + Logo + Nav */}
+                <div className="flex items-center gap-6">
+                    <div className="flex items-center gap-3">
+                        <button 
+                            onClick={onBack} 
+                            title="Voltar" 
+                            className="p-2 -ml-1 rounded-[10px] hover:bg-slate-100 transition-colors text-slate-500 active:scale-90 touch-none flex items-center justify-center min-w-[36px] min-h-[36px]"
+                            aria-label="Voltar"
+                        >
+                            <Icons.ArrowLeft className="w-5 h-5" />
+                        </button>
+                        <Link href="/" className="text-xl font-black tracking-tight text-slate-900 shrink-0 hover:scale-105 transition-transform active:scale-95 cursor-pointer">
+                            mi<span className="text-[#FF4586]">mu</span>us<span className="text-[#00C9D4]">.</span>
+                        </Link>
+                        <span className="text-[9px] font-black uppercase text-[#FF4586] bg-[#FF4586]/10 border border-[#FF4586]/20 px-2 py-0.5 rounded-[4px] tracking-widest hidden sm:inline">Studio</span>
+                    </div>
+
+                    {/* Nav menus */}
+                    <nav className="hidden lg:flex items-center gap-1">
+                        {[
+                            { name: 'INÍCIO', href: '/' },
+                            { name: 'PRODUTOS', href: '/produtos' },
+                            { name: 'SOBRE', href: '/sobre' },
+                        ].map(item => (
+                            <a key={item.href} href={item.href} className="text-[11px] font-bold tracking-widest uppercase text-slate-500 hover:text-slate-900 hover:bg-slate-100 px-3 py-1.5 rounded-[8px] transition-colors">
+                                {item.name}
+                            </a>
+                        ))}
+                    </nav>
+                </div>
+
+                {/* RIGHT: Actions */}
+                <div className="flex items-center gap-1.5 lg:gap-2">
+                    {isAdmin && (
+                        <button onClick={() => setShowCalibration(!showCalibration)} className="hidden lg:flex items-center justify-center w-8 h-8 rounded-[8px] bg-slate-100 hover:bg-slate-200 transition-all" title="Monitor">
+                            <Icons.Settings className={`w-4 h-4 ${showCalibration ? 'text-[#FF4586]' : 'text-slate-400'}`} />
+                        </button>
+                    )}
+                    <div className="h-4 w-px bg-slate-200 hidden sm:block mx-1"></div>
+                    <button onClick={() => undo(s => { setSku(s.sku); setLayers(s.layers); setSelectedLayerId(s.selectedLayerId); })} disabled={!canUndo} className="p-1.5 rounded-[8px] hover:bg-slate-100 transition-colors text-slate-400 disabled:opacity-30" title="Desfazer">
+                        <Icons.Undo className="w-4 h-4" />
+                    </button>
+                    <button onClick={() => redo(s => { setSku(s.sku); setLayers(s.layers); setSelectedLayerId(s.selectedLayerId); })} disabled={!canRedo} className="p-1.5 rounded-[8px] hover:bg-slate-100 transition-colors text-slate-400 disabled:opacity-30" title="Refazer">
+                        <Icons.Redo className="w-4 h-4" />
+                    </button>
+                    <button onClick={() => { if (window.confirm('Limpar tudo?')) { setLayers([]); setSelectedLayerId(null); } }} className="p-1.5 rounded-[8px] hover:bg-slate-100 transition-colors" title="Limpar tudo">
+                        <Icons.Trash className="w-4 h-4 text-red-400" />
+                    </button>
+                    <div className="h-4 w-px bg-slate-200 hidden sm:block mx-1"></div>
+                    <div className="hidden sm:block"><XPBar /></div>
+                    {isAdmin && (
+                        <button onClick={handleAdminClick} disabled={isBusy} className="hidden lg:flex items-center gap-1.5 bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 px-3 py-1.5 rounded-[8px] font-bold uppercase tracking-wider text-[10px] hover:bg-emerald-500/20 transition-all">
+                            <Icons.Save className="w-3 h-3" /> Salvar
+                        </button>
+                    )}
+                    <button onClick={handleAddToCart} disabled={isBusy} className="btn-gradient text-white px-4 py-2 rounded-[8px] font-bold uppercase tracking-wider text-xs flex items-center gap-1.5 shadow-md hover:shadow-lg active:scale-95 disabled:opacity-50 border border-[#FF4586]">
+                        <Icons.ShoppingBag className="w-4 h-4" />
+                        <span className="hidden sm:inline">Comprar</span>
+                    </button>
+                </div>
+            </header>
+
+            {/* ================================================================
+                MOBILE EDITOR — TikTok preview × Canva scroll (lg:hidden)
+                Web/desktop layout is untouched below in <main>
+            ================================================================ */}
+            {(() => {
+                const selectedLayer = layers.find(l => l.id === selectedLayerId) ?? null;
+
+                // Scroll helper — scrolls the editing area to a given section id
+                const scrollToSection = (id: string) => {
+                    const el = mobileScrollRef.current?.querySelector(`#${id}`);
+                    el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                };
+
+                return (
+                <div className="lg:hidden flex-1 flex flex-col overflow-hidden">
+
+                    {/* ── Sticky bottle preview (no background) ─────────────── */}
+                    <div className="shrink-0 w-full aspect-square relative overflow-hidden bg-transparent">
+                        <BottlePreview
+                            sku={sku} lidColor={lidColor} layers={layers}
+                            selectedLayerId={selectedLayerId} isBusy={isBusy}
+                            onUndo={() => {}} onRedo={() => {}} onReset={() => {}}
+                            canUndo={canUndo} canRedo={canRedo}
+                            onSelectLayer={handleSelectLayer} onUpdateLayer={updateLayer}
+                            onDuplicateLayer={duplicateLayer}
+                            onMoveLayerUp={moveLayerUp}
+                            onMoveLayerDown={moveLayerDown}
+                            onDeleteLayer={deleteLayer}
+                            draftText={draftText} draftTextPosition={defaultTextPosition}
+                            hideCanvasBackground={true}
+                            hideUI={true}
+                        />
+                    </div>
+
+                    {/* ── Sticky 3-tab nav ──────────────────────────────────── */}
+                    <div className="shrink-0 flex border-b border-slate-100 bg-white shadow-sm z-10">
+                        <button
+                            onClick={() => scrollToSection('mobile-section-color')}
+                            className="flex-1 flex flex-col items-center gap-1 py-2.5 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-[#FF4586] transition-colors active:bg-slate-50"
+                        >
+                            <div className="w-6 h-6 rounded-lg flex items-center justify-center bg-linear-to-br from-[#FF4586] to-[#FF8C42]">
+                                <Icons.Palette className="w-3.5 h-3.5 text-white" />
+                            </div>
+                            Cor
+                        </button>
+                        <button
+                            onClick={() => scrollToSection('mobile-section-images')}
+                            className="flex-1 flex flex-col items-center gap-1 py-2.5 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-indigo-500 transition-colors active:bg-slate-50"
+                        >
+                            <div className="w-6 h-6 rounded-lg flex items-center justify-center bg-linear-to-br from-indigo-500 to-blue-600">
+                                <Icons.Layers className="w-3.5 h-3.5 text-white" />
+                            </div>
+                            Imagem
+                        </button>
+                        <button
+                            onClick={() => scrollToSection('mobile-section-text')}
+                            className="flex-1 flex flex-col items-center gap-1 py-2.5 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-rose-500 transition-colors active:bg-slate-50"
+                        >
+                            <div className="w-6 h-6 rounded-lg flex items-center justify-center bg-linear-to-br from-rose-400 to-orange-400">
+                                <Icons.Type className="w-3.5 h-3.5 text-white" />
+                            </div>
+                            Texto
+                        </button>
+                        <button
+                            onClick={() => scrollToSection('mobile-section-cta')}
+                            className="flex-1 flex flex-col items-center gap-1 py-2.5 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-emerald-600 transition-colors active:bg-slate-50"
+                        >
+                            <div className="w-6 h-6 rounded-lg flex items-center justify-center bg-linear-to-br from-emerald-400 to-teal-500">
+                                <Icons.ShoppingBag className="w-3.5 h-3.5 text-white" />
+                            </div>
+                            Comprar
+                        </button>
+                    </div>
+
+                    {/* ── Scrollable editing sections ───────────────────────── */}
+                    <div ref={mobileScrollRef} className="flex-1 min-h-0 overflow-y-auto bg-white overscroll-contain">
+
+                        {/* ── 1. Cor da Garrafa ── */}
+                        <div id="mobile-section-color" className="border-b border-slate-100">
+                            <div className="flex items-center gap-3 px-4 pt-5 pb-3">
+                                <div className="w-9 h-9 rounded-2xl flex items-center justify-center bg-linear-to-br from-[#FF4586] to-[#FF8C42] shadow-sm shrink-0">
+                                    <Icons.Palette className="w-4 h-4 text-white" />
+                                </div>
+                                <div>
+                                    <h3 className="font-black text-sm text-slate-800 leading-tight">Cor da Garrafa</h3>
+                                    <p className="text-[11px] text-slate-400 font-medium">Escolha a cor ideal</p>
+                                </div>
+                            </div>
+                            <div className="px-4 pb-5">
+                                <BottleColorPicker selectedSku={sku} onSelectSku={setSku} />
+                            </div>
+                        </div>
+
+                        {/* ── 2. Arte & Imagens ── */}
+                        <div id="mobile-section-images" className="border-b border-slate-100">
+                            <div className="flex items-center gap-3 px-4 pt-5 pb-3">
+                                <div className="w-9 h-9 rounded-2xl flex items-center justify-center bg-linear-to-br from-indigo-500 to-blue-600 shadow-sm shrink-0">
+                                    <Icons.Layers className="w-4 h-4 text-white" />
+                                </div>
+                                <div>
+                                    <h3 className="font-black text-sm text-slate-800 leading-tight">Arte & Imagens</h3>
+                                    <p className="text-[11px] text-slate-400 font-medium">Stickers, ícones e suas fotos</p>
+                                </div>
+                            </div>
+                            <div className="px-4 pb-3">
+                                <ImageControls
+                                    layers={layers} expandedLayerId={selectedLayerId} onExpandLayer={handleSelectLayer}
+                                    onUpdateLayer={updateLayer} onAddImage={handleAddImage} onDeleteLayer={deleteLayer}
+                                    isBusy={isBusy} aiPrompt={aiPrompt} setAiPrompt={setAiPrompt} isAiLoading={isAiLoading}
+                                    handleAiGenerate={handleAiGenerate} handleAiBackgroundRemoval={handleAiBackgroundRemoval}
+                                    handleUpload={handleUpload} hideAddSection={false}
+                                    isAdmin={isAdmin} onRecordDefault={handleRecordDefault}
+                                />
+                            </div>
+
+                            {/* ── Inline layer properties (image/icon) ── */}
+                            {selectedLayer && (selectedLayer.type === 'image' || selectedLayer.type === 'icon') && (
+                                <div className="mx-4 mb-5 rounded-2xl bg-slate-50 border border-slate-200 p-4 flex flex-col gap-4">
+                                    {/* Header */}
+                                    <div className="flex items-center gap-3">
+                                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                                        <img src={selectedLayer.content} alt="" className="w-9 h-9 rounded-xl object-contain bg-white border border-slate-200 p-1 shrink-0" />
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-[11px] font-black text-slate-700 uppercase tracking-widest leading-none">Ajustes</p>
+                                            <p className="text-[10px] text-indigo-500 font-bold mt-0.5">{selectedLayer.type === 'icon' ? 'Ícone selecionado' : 'Imagem selecionada'}</p>
+                                        </div>
+                                        <button title="Desselecionar" onClick={() => handleSelectLayer(null)}
+                                            className="w-7 h-7 rounded-full bg-slate-200 hover:bg-red-100 hover:text-red-500 transition-all flex items-center justify-center text-slate-500">
+                                            <Icons.X className="w-3.5 h-3.5" />
+                                        </button>
+                                    </div>
+
+                                    {/* Ações Rápidas */}
+                                    <div className="flex items-center gap-2">
+                                        <button 
+                                            onClick={() => duplicateLayer(selectedLayer.id)}
+                                            title="Duplicar"
+                                            className="flex-1 flex items-center justify-center gap-2 py-2 bg-white border border-slate-200 rounded-xl text-[10px] font-black uppercase tracking-wider text-slate-600 active:bg-slate-100"
+                                        >
+                                            <Icons.Copy className="w-3.5 h-3.5 text-indigo-500" />
+                                            Duplicar
+                                        </button>
+                                        <div className="flex gap-2">
+                                            <button 
+                                                onClick={() => moveLayerUp(selectedLayer.id)}
+                                                title="Trazer para Frente"
+                                                className="w-9 h-9 flex items-center justify-center bg-white border border-slate-200 rounded-xl text-slate-600 active:bg-slate-100"
+                                            >
+                                                <Icons.ArrowUp className="w-4 h-4" />
+                                            </button>
+                                            <button 
+                                                onClick={() => moveLayerDown(selectedLayer.id)}
+                                                title="Enviar para Trás"
+                                                className="w-9 h-9 flex items-center justify-center bg-white border border-slate-200 rounded-xl text-slate-600 active:bg-slate-100"
+                                            >
+                                                <Icons.ArrowDown className="w-4 h-4" />
+                                            </button>
+                                            <button 
+                                                onClick={() => deleteLayer(selectedLayer.id)}
+                                                title="Remover"
+                                                className="w-9 h-9 flex items-center justify-center bg-red-50 border border-red-100 rounded-xl text-red-500 active:bg-red-100"
+                                            >
+                                                <Icons.Trash className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div className="h-px bg-slate-200" />
+
+                                    {/* Escala */}
+                                    <div className="flex flex-col gap-1.5">
+                                        <div className="flex justify-between">
+                                            <span className="text-[11px] font-black text-slate-600 uppercase tracking-widest">Escala</span>
+                                            <span className="text-[11px] font-bold text-indigo-500">{Math.round((selectedLayer.size - 1000) / 10)}%</span>
+                                        </div>
+                                        <input type="range" min="-100" max="100" value={(selectedLayer.size - 1000) / 10}
+                                            title="Escala" className="slider-track-dark"
+                                            onChange={e => updateLayer(selectedLayer.id, { size: (Number(e.target.value) * 10) + 1000 })} />
+                                    </div>
+
+                                    {/* Rotação */}
+                                    <div className="flex flex-col gap-1.5">
+                                        <div className="flex justify-between">
+                                            <span className="text-[11px] font-black text-slate-600 uppercase tracking-widest">Rotação</span>
+                                            <span className="text-[11px] font-bold text-indigo-500">{selectedLayer.rotation ?? 0}°</span>
+                                        </div>
+                                        <input type="range" min="-180" max="180" value={selectedLayer.rotation ?? 0}
+                                            title="Rotação" className="slider-track-dark"
+                                            onChange={e => updateLayer(selectedLayer.id, { rotation: Number(e.target.value) })} />
+                                    </div>
+
+                                    {/* Esticar */}
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="flex flex-col gap-1.5">
+                                            <div className="flex justify-between">
+                                                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Altura ↕</span>
+                                                <span className="text-[10px] font-bold text-indigo-400">{Math.round((selectedLayer.scaleY ?? 1) * 100) - 100}%</span>
+                                            </div>
+                                            <input type="range" min="-100" max="100" value={Math.round((selectedLayer.scaleY ?? 1) * 100) - 100}
+                                                title="Esticar altura" className="slider-track-dark"
+                                                onChange={e => updateLayer(selectedLayer.id, { scaleY: Math.max(0.1, (Number(e.target.value) + 100) / 100) })} />
+                                        </div>
+                                        <div className="flex flex-col gap-1.5">
+                                            <div className="flex justify-between">
+                                                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Largura ↔</span>
+                                                <span className="text-[10px] font-bold text-indigo-400">{Math.round((selectedLayer.scaleX ?? 1) * 100) - 100}%</span>
+                                            </div>
+                                            <input type="range" min="-100" max="100" value={Math.round((selectedLayer.scaleX ?? 1) * 100) - 100}
+                                                title="Esticar largura" className="slider-track-dark"
+                                                onChange={e => updateLayer(selectedLayer.id, { scaleX: Math.max(0.1, (Number(e.target.value) + 100) / 100) })} />
+                                        </div>
+                                    </div>
+
+                                    {/* Actions */}
+                                    <div className="flex gap-2">
+                                        <button onClick={() => updateLayer(selectedLayer.id, { isMirrored: !selectedLayer.isMirrored })}
+                                            className="flex-1 py-2.5 rounded-xl bg-white border border-slate-200 text-slate-600 text-xs font-bold hover:bg-slate-100 transition-colors">
+                                            Espelhar
+                                        </button>
+                                        {selectedLayer.type === 'image' && (
+                                            <button onClick={() => handleAiBackgroundRemoval(selectedLayer.id)} disabled={isBusy}
+                                                className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-colors ${selectedLayer.isBgClean ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'}`}>
+                                                {selectedLayer.isBgClean ? '✨ Fundo OK' : '🪄 Rem. Fundo'}
+                                            </button>
+                                        )}
+                                        <button title="Remover camada" onClick={() => { deleteLayer(selectedLayer.id); handleSelectLayer(null); }}
+                                            className="py-2.5 px-3 rounded-xl bg-red-50 border border-red-200 text-red-500 text-xs font-bold hover:bg-red-100 transition-colors">
+                                            <Icons.Trash className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* ── 3. Personalizar Texto ── */}
+                        <div id="mobile-section-text" className="border-b border-slate-100">
+                            <div className="flex items-center gap-3 px-4 pt-5 pb-3">
+                                <div className="w-9 h-9 rounded-2xl flex items-center justify-center bg-linear-to-br from-rose-400 to-orange-400 shadow-sm shrink-0">
+                                    <Icons.Type className="w-4 h-4 text-white" />
+                                </div>
+                                <div>
+                                    <h3 className="font-black text-sm text-slate-800 leading-tight">Personalizar Texto</h3>
+                                    <p className="text-[11px] text-slate-400 font-medium">Escreva sua mensagem especial</p>
+                                </div>
+                            </div>
+                            <div className="px-4 pb-3">
+                                <TextControls
+                                    layers={layers} expandedLayerId={selectedLayerId} onExpandLayer={handleSelectLayer}
+                                    onUpdateLayer={updateLayer} onAddText={handleAddText} onDeleteLayer={deleteLayer}
+                                    activeIconCat={activeIconCat} setActiveIconCat={setActiveIconCat}
+                                    ICON_CATEGORIES={ICON_CATEGORIES} onAddIcon={handleAddIcon} onNewTextChange={setDraftText}
+                                    isAdmin={isAdmin} onRecordDefault={handleRecordDefault}
+                                />
+                            </div>
+
+                            {/* ── Inline text layer properties ── */}
+                            {selectedLayer && selectedLayer.type === 'text' && (
+                                <div className="mx-4 mb-5 rounded-2xl bg-slate-50 border border-slate-200 p-4 flex flex-col gap-4">
+                                    {/* Header */}
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-linear-to-br from-rose-400 to-orange-400 shrink-0">
+                                            <Icons.Type className="w-4 h-4 text-white" />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-[11px] font-black text-slate-700 uppercase tracking-widest leading-none">Ajustes</p>
+                                            <p className="text-[10px] text-rose-500 font-bold mt-0.5 truncate">{selectedLayer.content}</p>
+                                        </div>
+                                        <button title="Desselecionar" onClick={() => handleSelectLayer(null)}
+                                            className="w-7 h-7 rounded-full bg-slate-200 hover:bg-red-100 hover:text-red-500 transition-all flex items-center justify-center text-slate-500">
+                                            <Icons.X className="w-3.5 h-3.5" />
+                                        </button>
+                                    </div>
+
+                                    {/* Ações Rápidas Texto */}
+                                    <div className="flex items-center gap-2">
+                                        <button 
+                                            onClick={() => duplicateLayer(selectedLayer.id)}
+                                            title="Duplicar"
+                                            className="flex-1 flex items-center justify-center gap-2 py-2 bg-white border border-slate-200 rounded-xl text-[10px] font-black uppercase tracking-wider text-slate-600 active:bg-slate-100"
+                                        >
+                                            <Icons.Copy className="w-3.5 h-3.5 text-rose-500" />
+                                            Duplicar
+                                        </button>
+                                        <div className="flex gap-2">
+                                            <button 
+                                                onClick={() => moveLayerUp(selectedLayer.id)}
+                                                title="Trazer para Frente"
+                                                className="w-9 h-9 flex items-center justify-center bg-white border border-slate-200 rounded-xl text-slate-600 active:bg-slate-100"
+                                            >
+                                                <Icons.ArrowUp className="w-4 h-4" />
+                                            </button>
+                                            <button 
+                                                onClick={() => moveLayerDown(selectedLayer.id)}
+                                                title="Enviar para Trás"
+                                                className="w-9 h-9 flex items-center justify-center bg-white border border-slate-200 rounded-xl text-slate-600 active:bg-slate-100"
+                                            >
+                                                <Icons.ArrowDown className="w-4 h-4" />
+                                            </button>
+                                            <button 
+                                                onClick={() => deleteLayer(selectedLayer.id)}
+                                                title="Remover"
+                                                className="w-9 h-9 flex items-center justify-center bg-red-50 border border-red-100 rounded-xl text-red-500 active:bg-red-100"
+                                            >
+                                                <Icons.Trash className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div className="h-px bg-slate-200" />
+
+                                    {/* Conteúdo */}
+                                    <div className="flex flex-col gap-1.5">
+                                        <span className="text-[11px] font-black text-slate-600 uppercase tracking-widest">Texto</span>
+                                        <input type="text" title="Conteúdo" placeholder="Digite o texto..."
+                                            value={selectedLayer.content}
+                                            onChange={e => updateLayer(selectedLayer.id, { content: e.target.value })}
+                                            className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-bold text-slate-800 outline-none focus:border-rose-400 transition-colors" />
+                                    </div>
+
+                                    {/* Tamanho */}
+                                    <div className="flex flex-col gap-1.5">
+                                        <div className="flex justify-between">
+                                            <span className="text-[11px] font-black text-slate-600 uppercase tracking-widest">Tamanho</span>
+                                            <span className="text-[11px] font-bold text-rose-500">{selectedLayer.size}%</span>
+                                        </div>
+                                        <input type="range" min="10" max="1000" value={selectedLayer.size}
+                                            title="Tamanho do texto" className="slider-track-dark"
+                                            onChange={e => updateLayer(selectedLayer.id, { size: Number(e.target.value) })} />
+                                    </div>
+
+                                    {/* Rotação */}
+                                    <div className="flex flex-col gap-1.5">
+                                        <div className="flex justify-between">
+                                            <span className="text-[11px] font-black text-slate-600 uppercase tracking-widest">Rotação</span>
+                                            <span className="text-[11px] font-bold text-rose-500">{selectedLayer.rotation ?? 0}°</span>
+                                        </div>
+                                        <input type="range" min="-180" max="180" value={selectedLayer.rotation ?? 0}
+                                            title="Rotação do texto" className="slider-track-dark"
+                                            onChange={e => updateLayer(selectedLayer.id, { rotation: Number(e.target.value) })} />
+                                    </div>
+
+                                    {/* Estilo */}
+                                    <div className="flex gap-2">
+                                        <button onClick={() => updateLayer(selectedLayer.id, { underline: !selectedLayer.underline })}
+                                            className={`flex-1 py-2.5 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 ${selectedLayer.underline ? 'bg-rose-50 border-rose-300 text-rose-500' : 'bg-white border-slate-200 text-slate-500'}`}
+                                            title="Sublinhado">
+                                            <Icons.Underline className="w-3.5 h-3.5" />
+                                            Sub
+                                        </button>
+                                        <button onClick={() => updateLayer(selectedLayer.id, { italic: !selectedLayer.italic })}
+                                            className={`flex-1 py-2.5 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 ${selectedLayer.italic ? 'bg-rose-50 border-rose-300 text-rose-500' : 'bg-white border-slate-200 text-slate-500'}`}
+                                            title="Itálico">
+                                            <Icons.Italic className="w-3.5 h-3.5" />
+                                            Ita
+                                        </button>
+                                        <button onClick={() => updateLayer(selectedLayer.id, { stroke: !selectedLayer.stroke })}
+                                            className={`flex-1 py-2.5 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 ${selectedLayer.stroke ? 'bg-rose-50 border-rose-300 text-rose-500' : 'bg-white border-slate-200 text-slate-500'}`}
+                                            title="Contorno">
+                                            <Icons.Bold className="w-3.5 h-3.5" />
+                                            Brd
+                                        </button>
+                                    </div>
+
+                                    {/* Cor */}
+                                    <div className="flex flex-col gap-2">
+                                        <span className="text-[11px] font-black text-slate-600 uppercase tracking-widest">Cor</span>
+                                        <div className="grid grid-cols-8 gap-2">
+                                            {EDITOR_COLORS.slice(0, 16).map((c) => (
+                                                <button key={c.name}
+                                                    onClick={() => updateLayer(selectedLayer.id, { color: c.valor })}
+                                                    className={`w-8 h-8 rounded-full border-2 transition-all ${selectedLayer.color === c.valor ? 'border-rose-400 scale-110 shadow-md' : 'border-slate-200 hover:scale-105'}`}
+                                                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                                    style={(c as any).style || { backgroundColor: c.valor }}
+                                                    title={c.name}
+                                                />
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Fonte */}
+                                    <div className="flex flex-col gap-2">
+                                        <span className="text-[11px] font-black text-slate-600 uppercase tracking-widest">Fonte</span>
+                                        <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto">
+                                            {FONTS.map((f) => (
+                                                <button key={f.name}
+                                                    onClick={() => updateLayer(selectedLayer.id, { font: f.family })}
+                                                    style={{ fontFamily: f.family }}
+                                                    className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all ${selectedLayer.font === f.family ? 'bg-rose-50 border-rose-300 text-rose-600' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-100'}`}
+                                                >{f.name}</button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* ── 4. Finalizar & Comprar ── */}
+                        <div id="mobile-section-cta" className="px-4 py-6">
+                            <div className="rounded-3xl bg-linear-to-br from-slate-50 to-white border border-slate-200/60 p-5 text-center shadow-sm">
+                                <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-1">Seu design está pronto!</p>
+                                <p className="font-black text-2xl text-slate-900 mb-1">
+                                    R$ {SKUS[sku]?.price?.toFixed(2).replace('.', ',') ?? '89,90'}
+                                </p>
+                                <p className="text-[11px] text-slate-400 mb-5">Frete grátis acima de R$&nbsp;199</p>
+                                <button
+                                    onClick={handleAddToCart}
+                                    disabled={isBusy}
+                                    className="w-full btn-gradient text-white py-4 rounded-2xl font-black uppercase tracking-wider text-sm flex items-center justify-center gap-2 shadow-lg active:scale-[0.98] transition-transform disabled:opacity-50"
+                                >
+                                    <Icons.ShoppingBag className="w-5 h-5" />
+                                    Adicionar ao Carrinho
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Safe area */}
+                        <div className="h-20" />
+                    </div>
+                </div>
+                );
+            })()}
+
+
+
+            {/* Main Area — DESKTOP ONLY (hidden on mobile) */}
+            <main className="flex-1 hidden lg:grid lg:grid-cols-12 lg:gap-4 lg:p-4 overflow-hidden relative">
+
+
+                {/* LEFT Sidebar — Images & Assets (Desktop Only) */}
+                <aside className="lg:col-span-2 editor-sidebar rounded-[8px] p-4 flex flex-col lg:h-full overflow-hidden relative z-20 hidden lg:flex">
+                    <div className="flex items-center gap-2.5 mb-5 shrink-0">
+                        <div className="w-6 h-6 rounded-[6px] bg-linear-to-br from-indigo-500 to-blue-600 flex items-center justify-center text-white shadow">
+                            <Icons.Layers className="w-3 h-3" />
+                        </div>
+                        <h2 className="font-black text-[11px] uppercase tracking-widest text-slate-600">Camadas</h2>
+                    </div>
+                    <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 space-y-4">
+
+                        <ImageControls
+                            layers={layers} expandedLayerId={selectedLayerId} onExpandLayer={handleSelectLayer}
+                            onUpdateLayer={updateLayer} onAddImage={handleAddImage} onDeleteLayer={deleteLayer}
+                            isBusy={isBusy} aiPrompt={aiPrompt} setAiPrompt={setAiPrompt} isAiLoading={isAiLoading}
+                            handleAiGenerate={handleAiGenerate} handleAiBackgroundRemoval={handleAiBackgroundRemoval} handleUpload={handleUpload}
+                            hideAddSection={false}
+                            isAdmin={isAdmin} onRecordDefault={handleRecordDefault}
+                        />
+                    </div>
+
+                </aside>
+
+                {/* CENTER — Preview + Floating Property Panels */}
+                <section className="flex-1 min-h-0 w-full lg:col-span-8 flex flex-col lg:items-center lg:justify-center relative">
+
+
+                    {/* Floating IMAGE/ICON properties panel — LEFT of preview (desktop only) */}
+                    <div className="hidden lg:block">
+                    <AnimatePresence>
+                    {isPanelLeft && selectedLayer && (
+                        <motion.div
+                            key="img-panel"
+                            initial={{ opacity: 0, x: -24 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: -24 }}
+                            transition={{ type: 'spring', stiffness: 380, damping: 32 }}
+                            className="absolute left-0 top-1/2 -translate-y-1/2 w-[220px] editor-float-panel rounded-[8px] p-4 z-30 flex flex-col gap-4 shadow-xl border border-slate-200"
+                        >
+                            {/* Header */}
+                            <div className="flex items-center gap-2.5">
+                                <div className="w-8 h-8 rounded-[6px] overflow-hidden bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0">
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img src={selectedLayer.content} alt="" className="max-w-full max-h-full object-contain" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-[11px] font-black text-slate-700 uppercase tracking-widest leading-none">Propriedades</p>
+                                    <p className="text-[10px] text-indigo-500 font-bold mt-0.5">{selectedLayer.type === 'icon' ? 'Ícone' : 'Imagem'}</p>
+                                </div>
+                                <button title="Fechar painel" onClick={() => handleSelectLayer(null)} className="w-6 h-6 rounded-[6px] bg-slate-100 hover:bg-red-50 hover:text-red-500 transition-all flex items-center justify-center text-slate-400">
+                                    <Icons.X className="w-3 h-3" />
+                                </button>
+                            </div>
+
+                            <div className="w-full h-px bg-slate-200" />
+
+                            {/* Escala */}
+                            <div className="flex flex-col gap-2">
+                                <div className="flex justify-between">
+                                    <span className="section-label-dark mb-0">Escala</span>
+                                    <span className="text-[11px] font-bold text-indigo-500">{Math.round((selectedLayer.size - 1000) / 10)}%</span>
+                                </div>
+                                <input type="range" min="-100" max="100" value={(selectedLayer.size - 1000) / 10}
+                                    title="Escala"
+                                    onChange={e => updateLayer(selectedLayer.id, { size: (Number(e.target.value) * 10) + 1000 })}
+                                    className="slider-track-dark" />
+                            </div>
+
+                            {/* Rotação */}
+                            <div className="flex flex-col gap-2">
+                                <div className="flex justify-between">
+                                    <span className="section-label-dark mb-0">Rotação</span>
+                                    <span className="text-[11px] font-bold text-indigo-500">{selectedLayer.rotation ?? 0}°</span>
+                                </div>
+                                <input type="range" min="-180" max="180" value={selectedLayer.rotation ?? 0}
+                                    title="Rotação"
+                                    onChange={e => updateLayer(selectedLayer.id, { rotation: Number(e.target.value) })}
+                                    className="slider-track-dark" />
+                            </div>
+
+                            {/* Esticar Altura */}
+                            <div className="flex flex-col gap-2">
+                                <div className="flex justify-between">
+                                    <span className="section-label-dark mb-0">Esticar ↕</span>
+                                    <span className="text-[11px] font-bold text-indigo-500">{Math.round((selectedLayer.scaleY ?? 1) * 100) - 100}%</span>
+                                </div>
+                                <input type="range" min="-100" max="100" value={Math.round((selectedLayer.scaleY ?? 1) * 100) - 100}
+                                    title="Esticar altura"
+                                    onChange={e => updateLayer(selectedLayer.id, { scaleY: Math.max(0.1, (Number(e.target.value) + 100) / 100) })}
+                                    className="slider-track-dark" />
+                            </div>
+
+                            {/* Esticar Largura */}
+                            <div className="flex flex-col gap-2">
+                                <div className="flex justify-between">
+                                    <span className="section-label-dark mb-0">Esticar ↔</span>
+                                    <span className="text-[11px] font-bold text-indigo-500">{Math.round((selectedLayer.scaleX ?? 1) * 100) - 100}%</span>
+                                </div>
+                                <input type="range" min="-100" max="100" value={Math.round((selectedLayer.scaleX ?? 1) * 100) - 100}
+                                    title="Esticar largura"
+                                    onChange={e => updateLayer(selectedLayer.id, { scaleX: Math.max(0.1, (Number(e.target.value) + 100) / 100) })}
+                                    className="slider-track-dark" />
+                            </div>
+
+                            {/* Actions */}
+                            <div className="flex flex-col gap-2 pt-1">
+                                {selectedLayer.type === 'image' && (
+                                    <button onClick={() => handleAiBackgroundRemoval(selectedLayer.id)} disabled={isBusy}
+                                        className={`w-full py-2 px-3 rounded-[8px] font-bold text-xs flex items-center justify-center gap-1.5 transition-all ${
+                                            selectedLayer.isBgClean
+                                            ? 'bg-emerald-50 text-emerald-600 border border-emerald-200 cursor-default'
+                                            : 'bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100 cursor-pointer'
+                                        }`}>
+                                        {selectedLayer.isBgClean ? '✨ Fundo Removido' : '🪄 Remover Fundo'}
+                                    </button>
+                                )}
+                                
+                                {/* Mobile-only extra actions (from HUD) */}
+                                <div className="grid grid-cols-2 gap-2 lg:hidden">
+                                    <button onClick={() => duplicateLayer(selectedLayer.id)}
+                                        className="py-2 px-3 rounded-[8px] bg-slate-50 border border-slate-200 hover:bg-slate-100 text-slate-600 text-xs font-bold transition-colors flex items-center justify-center gap-1.5">
+                                        <Icons.Copy className="w-3.5 h-3.5" /> Duplicar
+                                    </button>
+                                    <button onClick={() => updateLayer(selectedLayer.id, { isMirrored: !selectedLayer.isMirrored })}
+                                        className="py-2 px-3 rounded-[8px] bg-slate-50 border border-slate-200 hover:bg-slate-100 text-slate-600 text-xs font-bold transition-colors flex items-center justify-center gap-1.5">
+                                        <Icons.RotateCw className="w-3.5 h-3.5" /> {selectedLayer.isMirrored ? 'Normal' : 'Espelhar'}
+                                    </button>
+                                    <button onClick={() => moveLayerUp(selectedLayer.id)}
+                                        className="py-2 px-3 rounded-[8px] bg-slate-50 border border-slate-200 hover:bg-slate-100 text-slate-600 text-xs font-bold transition-colors flex items-center justify-center gap-1.5">
+                                        <Icons.ChevronUp className="w-3.5 h-3.5" /> Trazer para frente
+                                    </button>
+                                    <button onClick={() => moveLayerDown(selectedLayer.id)}
+                                        className="py-2 px-3 rounded-[8px] bg-slate-50 border border-slate-200 hover:bg-slate-100 text-slate-600 text-xs font-bold transition-colors flex items-center justify-center gap-1.5">
+                                        <Icons.ChevronDown className="w-3.5 h-3.5" /> Enviar para trás
+                                    </button>
+                                </div>
+
+                                <button onClick={() => updateLayer(selectedLayer.id, { isMirrored: !selectedLayer.isMirrored })}
+                                    className="hidden lg:block w-full py-2 px-3 rounded-[8px] bg-slate-50 border border-slate-200 hover:bg-slate-100 text-slate-600 text-xs font-bold transition-colors">
+                                    Espelhar
+                                </button>
+                                {isAdmin && (
+                                    <button onClick={() => handleRecordDefault(selectedLayer)}
+                                        className="w-full py-2 px-3 rounded-[8px] bg-blue-50 border border-blue-200 hover:bg-blue-100 text-blue-600 text-[10px] font-black uppercase tracking-widest transition-all">
+                                        Gravar como Padrão
+                                    </button>
+                                )}
+                                <button onClick={() => { deleteLayer(selectedLayer.id); handleSelectLayer(null); }}
+                                    className="w-full py-2 text-red-500 text-xs font-bold hover:bg-red-50 rounded-[8px] transition-colors">
+                                    Excluir Camada
+                                </button>
+                            </div>
+                        </motion.div>
+                    )}
+                    </AnimatePresence>
+                    </div>
+
+                    {/* Floating TEXT properties panel — RIGHT of preview (desktop only) */}
+                    <div className="hidden lg:block">
+                    <AnimatePresence>
+                    {isPanelRight && selectedLayer && (
+                        <motion.div
+                            key="txt-panel"
+                            initial={{ opacity: 0, x: 24 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: 24 }}
+                            transition={{ type: 'spring', stiffness: 380, damping: 32 }}
+                            className="absolute right-0 top-1/2 -translate-y-1/2 w-[220px] editor-float-panel rounded-[8px] p-4 z-30 flex flex-col gap-4 shadow-xl border border-slate-200"
+                        >
+                            {/* Header */}
+                            <div className="flex items-center gap-2.5">
+                                <div className="w-8 h-8 rounded-[6px] bg-linear-to-br from-rose-400 to-orange-400 flex items-center justify-center shrink-0">
+                                    <Icons.Type className="w-3.5 h-3.5 text-white" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-[11px] font-black text-slate-700 uppercase tracking-widest leading-none">Texto</p>
+                                    <p className="text-[10px] text-rose-500 font-bold mt-0.5 truncate">{selectedLayer.content}</p>
+                                </div>
+                                <button title="Fechar painel" onClick={() => handleSelectLayer(null)} className="w-6 h-6 rounded-[6px] bg-slate-100 hover:bg-red-50 hover:text-red-500 transition-all flex items-center justify-center text-slate-400">
+                                    <Icons.X className="w-3 h-3" />
+                                </button>
+                            </div>
+
+                            <div className="w-full h-px bg-slate-200" />
+
+                            {/* Conteúdo */}
+                            <div className="flex flex-col gap-1.5">
+                                <span className="section-label-dark mb-0">Conteúdo</span>
+                                <input
+                                    type="text"
+                                    title="Conteúdo do texto"
+                                    placeholder="Digite o texto..."
+                                    value={selectedLayer.content}
+                                    onChange={e => updateLayer(selectedLayer.id, { content: e.target.value })}
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-[8px] px-3 py-2 text-sm font-bold text-slate-800 outline-none focus:border-rose-400 transition-colors"
+                                />
+                            </div>
+
+                            {/* Tamanho */}
+                            <div className="flex flex-col gap-2">
+                                <div className="flex justify-between">
+                                    <span className="section-label-dark mb-0">Tamanho</span>
+                                    <span className="text-[11px] font-bold text-rose-500">{selectedLayer.size}%</span>
+                                </div>
+                                <input type="range" min="10" max="1000" value={selectedLayer.size}
+                                    title="Tamanho do texto"
+                                    onChange={e => updateLayer(selectedLayer.id, { size: Number(e.target.value) })}
+                                    className="slider-track-dark" />
+                            </div>
+
+                            {/* Rotação */}
+                            <div className="flex flex-col gap-2">
+                                <div className="flex justify-between">
+                                    <span className="section-label-dark mb-0">Rotação</span>
+                                    <span className="text-[11px] font-bold text-rose-500">{selectedLayer.rotation ?? 0}°</span>
+                                </div>
+                                <input type="range" min="-180" max="180" value={selectedLayer.rotation ?? 0}
+                                    title="Rotação do texto"
+                                    onChange={e => updateLayer(selectedLayer.id, { rotation: Number(e.target.value) })}
+                                    className="slider-track-dark" />
+                            </div>
+
+                            {/* Estilo */}
+                            <div className="flex gap-1.5">
+                                <button onClick={() => updateLayer(selectedLayer.id, { underline: !selectedLayer.underline })}
+                                    className={`flex-1 p-2 rounded-[8px] border transition-all flex items-center justify-center ${selectedLayer.underline ? 'bg-rose-50 border-rose-300 text-rose-500' : 'bg-slate-50 border-slate-200 text-slate-400 hover:bg-slate-100'}`}
+                                    title="Sublinhado"><Icons.Underline className="w-3.5 h-3.5" /></button>
+                                <button onClick={() => updateLayer(selectedLayer.id, { italic: !selectedLayer.italic })}
+                                    className={`flex-1 p-2 rounded-[8px] border transition-all flex items-center justify-center ${selectedLayer.italic ? 'bg-rose-50 border-rose-300 text-rose-500' : 'bg-slate-50 border-slate-200 text-slate-400 hover:bg-slate-100'}`}
+                                    title="Itálico"><Icons.Italic className="w-3.5 h-3.5" /></button>
+                                <button onClick={() => updateLayer(selectedLayer.id, { stroke: !selectedLayer.stroke })}
+                                    className={`flex-1 p-2 rounded-[8px] border transition-all flex items-center justify-center ${selectedLayer.stroke ? 'bg-rose-50 border-rose-300 text-rose-500' : 'bg-slate-50 border-slate-200 text-slate-400 hover:bg-slate-100'}`}
+                                    title="Contorno"><Icons.Bold className="w-3.5 h-3.5" /></button>
+                            </div>
+
+                            {/* Cor */}
+                            <div className="flex flex-col gap-2">
+                                <span className="section-label-dark mb-0">Cor</span>
+                                <div className="grid grid-cols-7 gap-1.5">
+                                    {EDITOR_COLORS.slice(0, 14).map((c) => (
+                                        <button key={c.name}
+                                            onClick={() => updateLayer(selectedLayer.id, { color: c.valor })}
+                                            className={`w-7 h-7 rounded-full border-2 transition-all ${selectedLayer.color === c.valor ? 'border-rose-400 scale-110 shadow-md' : 'border-slate-200 hover:scale-105'}`}
+                                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                            style={(c as any).style || { backgroundColor: c.valor }}
+                                            title={c.name}
+                                        />
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Actions — Mobile extra */}
+                            <div className="grid grid-cols-2 gap-2 lg:hidden">
+                                <button onClick={() => duplicateLayer(selectedLayer.id)}
+                                    className="py-2 px-3 rounded-[8px] bg-slate-50 border border-slate-200 hover:bg-slate-100 text-slate-600 text-xs font-bold transition-colors flex items-center justify-center gap-1.5">
+                                    <Icons.Copy className="w-3.5 h-3.5" /> Duplicar
+                                </button>
+                                <button onClick={() => moveLayerUp(selectedLayer.id)}
+                                    className="py-2 px-3 rounded-[8px] bg-slate-50 border border-slate-200 hover:bg-slate-100 text-slate-600 text-xs font-bold transition-colors flex items-center justify-center gap-1.5">
+                                    <Icons.ChevronUp className="w-3.5 h-3.5" /> Trazer para frente
+                                </button>
+                                <button onClick={() => moveLayerDown(selectedLayer.id)}
+                                    className="py-2 px-3 rounded-[8px] bg-slate-50 border border-slate-200 hover:bg-slate-100 text-slate-600 text-xs font-bold transition-colors flex items-center justify-center gap-1.5">
+                                    <Icons.ChevronDown className="w-3.5 h-3.5" /> Enviar para trás
+                                </button>
+                            </div>
+
+                            {isAdmin && (
+                                <button onClick={() => handleRecordDefault(selectedLayer)}
+                                    className="w-full py-2 px-3 rounded-[8px] bg-blue-50 border border-blue-200 hover:bg-blue-100 text-blue-600 text-[10px] font-black uppercase tracking-widest transition-all">
+                                    Gravar como Padrão
+                                </button>
+                            )}
+
+                            {/* Fonte — mini chips */}
+                            <div className="flex flex-col gap-2">
+                                <span className="section-label-dark mb-0">Fonte</span>
+                                <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto custom-scrollbar">
+                                    {FONTS.map((f) => (
+                                        <button key={f.name}
+                                            onClick={() => updateLayer(selectedLayer.id, { font: f.family })}
+                                            style={{ fontFamily: f.family }}
+                                            className={`px-2.5 py-1 rounded-[8px] text-[10px] font-bold border transition-all ${selectedLayer.font === f.family ? 'bg-rose-50 border-rose-300 text-rose-600' : 'bg-slate-50 border-slate-200 text-slate-500 hover:bg-slate-100'}`}
+                                        >{f.name}</button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Delete */}
+                            <button onClick={() => { deleteLayer(selectedLayer.id); handleSelectLayer(null); }}
+                                className="w-full py-2 text-red-500 text-xs font-bold hover:bg-red-50 rounded-[8px] transition-colors">
+                                Excluir Camada
+                            </button>
+                        </motion.div>
+                    )}
+                    </AnimatePresence>
+                    </div>
+
+                    {/* Preview */}
+                    <div className="w-full flex flex-col relative min-h-0 lg:flex-1 lg:gap-2">
+                        {/* Bottle color selector — desktop only; mobile uses the bottom tab panel */}
+                        <div className="shrink-0 w-full hidden lg:flex items-center justify-center py-2" data-html2canvas-ignore>
+                            <BottleColorPicker selectedSku={sku} onSelectSku={setSku} />
+                        </div>
+                        {/* Preview — desktop: height-constrained square; mobile: full-width 1:1 */}
+                        <div className="w-full min-h-0 lg:flex-1 lg:flex lg:items-center lg:justify-center">
+                            {/* Desktop wrapper keeps square within available height */}
+                            <div className="hidden lg:block aspect-square h-full max-h-full max-w-full">
+                                <BottlePreview
+                                    sku={sku} lidColor={lidColor} layers={layers} selectedLayerId={selectedLayerId} isBusy={isBusy}
+                                    onUndo={() => {}} onRedo={() => {}} onReset={() => {}}
+                                    canUndo={canUndo} canRedo={canRedo} onSelectLayer={handleSelectLayer} onUpdateLayer={updateLayer}
+                                    onDuplicateLayer={duplicateLayer}
+                                    onMoveLayerUp={moveLayerUp}
+                                    onMoveLayerDown={moveLayerDown}
+                                    onDeleteLayer={deleteLayer}
+                                    draftText={draftText} draftTextPosition={defaultTextPosition}
+                                />
+                            </div>
+                            {/* Mobile wrapper — full-width square, no height constraint */}
+                            <div className="lg:hidden w-full aspect-square">
+                                <BottlePreview
+                                    sku={sku} lidColor={lidColor} layers={layers} selectedLayerId={selectedLayerId} isBusy={isBusy}
+                                    onUndo={() => {}} onRedo={() => {}} onReset={() => {}}
+                                    canUndo={canUndo} canRedo={canRedo} onSelectLayer={handleSelectLayer} onUpdateLayer={updateLayer}
+                                    draftText={draftText} draftTextPosition={defaultTextPosition}
+                                />
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+
+                {/* RIGHT Sidebar — Text & Icons (Desktop Only) */}
+                <aside className="lg:col-span-12 xl:col-span-2 editor-sidebar rounded-[8px] p-4 flex flex-col lg:h-full overflow-hidden relative z-20 hidden lg:flex">
+                    <div className="flex items-center gap-2.5 mb-5 shrink-0">
+                        <div className="w-6 h-6 rounded-[6px] bg-linear-to-br from-rose-400 to-orange-400 flex items-center justify-center text-white shadow">
+                            <Icons.Type className="w-3 h-3" />
+                        </div>
+                        <h2 className="font-black text-[11px] uppercase tracking-widest text-slate-600">Texto & Ícones</h2>
+                    </div>
+                    <div className="flex-1 overflow-y-auto custom-scrollbar pr-1">
+                        <TextControls
+                            layers={layers} expandedLayerId={selectedLayerId} onExpandLayer={handleSelectLayer}
+                            onUpdateLayer={updateLayer} onAddText={handleAddText} onDeleteLayer={deleteLayer}
+                            activeIconCat={activeIconCat} setActiveIconCat={setActiveIconCat}
+                            ICON_CATEGORIES={ICON_CATEGORIES} onAddIcon={handleAddIcon} onNewTextChange={setDraftText}
+                            isAdmin={isAdmin} onRecordDefault={handleRecordDefault}
+                        />
+                    </div>
+
+                </aside>
+
+            </main>
+
+
+
+            {/* Modals and Overlays */}
+            <ShowcaseModal isOpen={showShowcase} onClose={() => setShowShowcase(false)} onConfirm={() => setShowShowcase(false)} sku={sku} lidColor={lidColor} />
+
+            {isAdmin && (
+                <CaptureCalibrationModal 
+                    isOpen={showCapturePreview} onClose={() => setShowCapturePreview(false)} onConfirmCapture={handleConfirmCapture}
+                    sku={sku} lidColor={lidColor} layers={layers} isBusy={isBusy} defaultTextPosition={defaultTextPosition}
+                />
+            )}
+
+            <AnimatePresence>
+                {showAdminModal && (
+                    <ProductRegistrationModal 
+                        onClose={() => setShowAdminModal(false)}
+                        onSave={async (data) => {
+                            toast.loading("Salvando...");
+                            try {
+                                const slug = data.name.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]/g, '');
+                                const res = await createProduct({
+                                    name: data.name, slug: slug, description: data.description, base_price: parseFloat(data.price),
+                                    category_id: data.category_id, tags: data.tags, images: data.previewImage ? [data.previewImage] : [],
+                                    metadata: { layers: layers.map(l => ({ ...l, id: uuidv4() })), sku, capturedAt: new Date().toISOString() }
+                                });
+                                toast.dismiss();
+                                if (res.success) { setShowAdminModal(false); toast.success("Sucesso!"); }
+                                else toast.error("Erro: " + res.error);
+                            } catch (error) {
+                                console.error(error);
+                                toast.error("Erro ao salvar produto");
+                            }
+                        }}
+                        initialData={{ name: `Garrafa ${sku} Custom`, price: SKUS[sku]?.price || 89.90, color: SKUS[sku]?.color }}
+                        previewImage={adminPreviewImage || SKUS[sku]?.img} 
+                    />
+                )}
+            </AnimatePresence>
+
+            <Dialog open={showShareModal} onOpenChange={setShowShareModal}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Compartilhar Template?</DialogTitle>
+                        <DialogDescription>
+                            Salve seu design como template para outros usuários. Você ganha <span className="text-brand-primary font-bold">50 Pontos</span> se alguém usar!
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="flex items-center justify-center py-4">
+                        <div className="w-32 h-32 rounded-xl overflow-hidden border border-gray-100 relative">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            {SKUS[sku] && <img src={generatedPreview || SKUS[sku].img} className="w-full h-full object-cover" alt="Preview"/>}
+                        </div>
+                    </div>
+                    <DialogFooter className="flex gap-2 sm:justify-center">
+                        <Button variant="outline" onClick={() => { setShowShareModal(false); setShowShowcase(true); }}>Não, obrigado</Button>
+                        <Button className="bg-brand-primary text-white" onClick={() => {
+                            toast.success("Template compartilhado! +10xp"); addXP(10, 'Compartilhamento de Template');
+                            setShowShareModal(false); setShowShowcase(true);
+                        }}>Compartilhar e Ganhar</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <div style={{ position: 'fixed', left: '-9999px', top: 0, zIndex: -1, pointerEvents: 'none', opacity: 0 }}>
+                {(() => {
+                    const getVal = (key: string, def: string) => {
+                        if (typeof window === 'undefined') return def;
+                        return localStorage.getItem(`mimuus_capture_${sku}_${key}`) || localStorage.getItem(`mimuus_capture_${key}`) || def;
+                    };
+                    return (
+                        <div id="checkout-capture-target" style={{ 
+                                width: `${parseInt(getVal('width', '800'))}px`, height: `${parseInt(getVal('height', '1000'))}px`, 
+                                padding: `${parseFloat(getVal('margin', '0'))}px`,
+                                backgroundColor: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center' 
+                            }}>
+                            <BottlePreview
+                                sku={sku} lidColor={lidColor} layers={layers} selectedLayerId={null} isBusy={false}
+                                onUndo={() => {}} onRedo={() => {}} onReset={() => {}} canUndo={false} canRedo={false} onSelectLayer={() => {}} onUpdateLayer={() => {}}
+                                draftText="" draftTextPosition={defaultTextPosition}
+                                zoom={parseFloat(getVal('zoom', '1.2'))} yOffset={(parseFloat(getVal('y_position', '50')) - 50) * 3}
+                                hideCanvasBackground={true} hideUI={true}
+                            />
+                        </div>
+                    );
+                })()}
+            </div>
+
+        </div>
+    );
+};

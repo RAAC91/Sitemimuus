@@ -1,0 +1,52 @@
+[
+  {
+    "column_name": "created_at",
+    "data_type": "timestamp with time zone",
+    "column_default": "now()"
+  },
+  {
+    "column_name": "order_id",
+    "data_type": "uuid",
+    "column_default": null
+  },
+  {
+    "column_name": "product_id",
+    "data_type": "integer",
+    "column_default": null
+  },
+  {
+    "column_name": "customization",
+    "data_type": "jsonb",
+    "column_default": null
+  },
+  {
+    "column_name": "id",
+    "data_type": "uuid",
+    "column_default": "uuid_generate_v4()"
+  },
+  {
+    "column_name": "quantity",
+    "data_type": "integer",
+    "column_default": "1"
+  },
+  {
+    "column_name": "unit_price",
+    "data_type": "numeric",
+    "column_default": null
+  },
+  {
+    "column_name": "total_price",
+    "data_type": "numeric",
+    "column_default": null
+  },
+  {
+    "column_name": "product_name",
+    "data_type": "character varying",
+    "column_default": null
+  },
+  {
+    "column_name": "thumbnail_url",
+    "data_type": "text",
+    "column_default": null
+  }
+]

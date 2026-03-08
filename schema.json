@@ -1,0 +1,42 @@
+[
+  {
+    "column_name": "created_at",
+    "data_type": "timestamp with time zone"
+  },
+  {
+    "column_name": "order_id",
+    "data_type": "uuid"
+  },
+  {
+    "column_name": "product_id",
+    "data_type": "integer"
+  },
+  {
+    "column_name": "customization",
+    "data_type": "jsonb"
+  },
+  {
+    "column_name": "id",
+    "data_type": "uuid"
+  },
+  {
+    "column_name": "quantity",
+    "data_type": "integer"
+  },
+  {
+    "column_name": "unit_price",
+    "data_type": "numeric"
+  },
+  {
+    "column_name": "total_price",
+    "data_type": "numeric"
+  },
+  {
+    "column_name": "product_name",
+    "data_type": "character varying"
+  },
+  {
+    "column_name": "thumbnail_url",
+    "data_type": "text"
+  }
+]

@@ -1,0 +1,25 @@
+User-agent: *
+Allow: /
+
+# Páginas importantes
+Allow: /produtos
+Allow: /editor
+Allow: /sobre
+Allow: /faq
+
+# Páginas legais
+Allow: /privacidade
+Allow: /termos
+Allow: /trocas
+Allow: /frete
+
+# Bloquear áreas administrativas
+Disallow: /admin
+Disallow: /api
+
+# Bloquear páginas de filtro duplicadas
+Disallow: /*?*filter=
+Disallow: /*?*sort=
+
+# Sitemap
+Sitemap: https://mimuus.com/sitemap.xml

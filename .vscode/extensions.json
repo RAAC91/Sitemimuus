@@ -1,0 +1,14 @@
+{
+  "recommendations": [
+    "bradlc.vscode-tailwindcss",
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode",
+    "formulahendry.auto-close-tag",
+    "formulahendry.auto-rename-tag",
+    "dsznajder.es7-react-js-snippets",
+    "mikestead.dotenv",
+    "christian-kohler.path-intellisense",
+    "pkief.material-icon-theme",
+    "unifiedjs.vscode-mdx"
+  ]
+}

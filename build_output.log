@@ -1,0 +1,62 @@
+﻿
+> mimuus@0.1.0 build
+> next build
+
+Ôû▓ Next.js 16.1.6 (Turbopack)
+- Environments: .env.local
+- Experiments (use with caution):
+  ┬À serverActions
+
+node.exe : ÔÜá The "middleware" file convention is 
+deprecated. Please use "proxy" instead. Learn more: 
+https://nextjs.org/docs/messages/middleware-to-proxy
+No linha:1 caractere:1
++ & "C:\Program Files\nodejs/node.exe" "C:\Program 
+Files\nodejs/node_mo ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (ÔÜá The "midd 
+   le...leware-to-proxy:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  Creating an optimized production build ...
+Ô£ô Compiled successfully in 23.1s
+  Running TypeScript ...
+  Collecting page data using 15 workers ...
+ÔÜá Using edge runtime on a page currently disables static 
+generation for that page
+Error: Failed to collect configuration for 
+/stud10/[[...tool]]
+    at ignore-listed frames {
+  [cause]: TypeError: (0 , bh.createContext) is not a 
+function
+      at instantiateModule (C:\Users\User\Documents\Site mi
+muus\Mimmus\.next\server\chunks\ssr\[turbopack]_runtime.js:
+740:9)
+      at getOrInstantiateModuleFromParent 
+(C:\Users\User\Documents\Site mimuus\Mimmus\.next\server\ch
+unks\ssr\[turbopack]_runtime.js:763:12)
+      at Context.esmImport [as i] 
+(C:\Users\User\Documents\Site mimuus\Mimmus\.next\server\ch
+unks\ssr\[turbopack]_runtime.js:228:20)
+      at module evaluation (C:\Users\User\Documents\Site mi
+muus\Mimmus\.next\server\chunks\ssr\[root-of-the-server]__8
+fb531f7._.js:1:8002)
+      at instantiateModule (C:\Users\User\Documents\Site mi
+muus\Mimmus\.next\server\chunks\ssr\[turbopack]_runtime.js:
+740:9)
+      at getOrInstantiateModuleFromParent 
+(C:\Users\User\Documents\Site mimuus\Mimmus\.next\server\ch
+unks\ssr\[turbopack]_runtime.js:763:12)
+      at Context.esmImport [as i] 
+(C:\Users\User\Documents\Site mimuus\Mimmus\.next\server\ch
+unks\ssr\[turbopack]_runtime.js:228:20)
+      at module evaluation (C:\Users\User\Documents\Site 
+mimuus\Mimmus\.next\server\chunks\ssr\_f4e3779d._.js:1:34)
+}
+
+> Build error occurred
+Error: Failed to collect page data for /stud10/[[...tool]]
+    at ignore-listed frames {
+  type: 'Error'
+}
