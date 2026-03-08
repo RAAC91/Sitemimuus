@@ -2,6 +2,114 @@
 trigger: always_on
 ---
 
+# 🚨 P0 — MOBILE ISOLATION LAW (NUNCA IGNORAR)
+
+> **Esta é a regra de maior prioridade de todo o projeto. Tem precedência sobre qualquer outra instrução.**
+
+## ⛔ MOBILE ≠ DESKTOP — SÃO DOIS APPS INDEPENDENTES
+
+O projeto possui **dois mundos separados**:
+
+| Mundo              | Breakpoint        | Regra                                         |
+| ------------------ | ----------------- | --------------------------------------------- |
+| 📱 **Mobile App**  | `< 1024px` (`lg`) | Arquivos próprios, lógica própria, UI própria |
+| 🖥️ **Desktop Web** | `≥ 1024px` (`lg`) | Nunca tocado ao editar mobile                 |
+
+---
+
+## 🔴 LEI ABSOLUTA — QUANDO EDITANDO MOBILE
+
+### Arquivos PROIBIDOS de modificar:
+
+- `src/components/layout/Header.tsx`
+- `src/components/layout/Footer.tsx`
+- `src/app/layout.tsx` — só se for adicionar import de componente mobile
+- Qualquer `className` com `lg:`, `xl:`, `2xl:`, `hidden lg:` ou `hidden md:`
+- Lógica de cálculo/posição que já funciona no desktop
+
+### O que é MOBILE-SAFE (permitido editar):
+
+- Arquivos com `Mobile` no nome (ex: `MobileNavbar.tsx`, `BottleEditorMobile.tsx`)
+- Blocos com `className="lg:hidden"` ou `className="md:hidden"`
+- Classes `sm:`, `max-sm:`, `xs:`, `max-lg:`
+- Pastas: `src/components/mobile/`, `src/app/mobile/`
+
+---
+
+## 📱 MOBILE-FIRST CODING STANDARDS
+
+Quando editar qualquer arquivo mobile, OBRIGATORIAMENTE:
+
+```css
+/* ✅ CORRETO: mobile-first (base = mobile, depois desktop) */
+.elemento {
+  display: flex; /* mobile base */
+  flex-direction: column; /* mobile base */
+  overflow-y: auto; /* mobile scroll */
+  -webkit-overflow-scrolling: touch; /* iOS smooth scroll */
+}
+@media (min-width: 1024px) {
+  .elemento {
+    flex-direction: row;
+  } /* desktop override */
+}
+
+/* ❌ ERRADO: desktop-first (base = desktop) */
+.elemento {
+  display: grid;
+}
+@media (max-width: 1024px) {
+  .elemento {
+    display: flex;
+  }
+}
+```
+
+### Flexbox Mobile — Regras:
+
+- Sempre `flex-direction: column` como base
+- `overflow: hidden` no container pai, `overflow-y: auto` no filho scrollável
+- `min-height: 0` em filhos flex para permitir scroll correto
+- `touch-action: pan-y` em elementos com drag
+
+### Declarações obrigatórias em containers mobile:
+
+```css
+height: 100dvh; /* dynamic viewport height (iOS safe) */
+overscroll-behavior: contain; /* evita scroll do body */
+-webkit-overflow-scrolling: touch;
+```
+
+---
+
+## 🏗️ ESTRUTURA DE ARQUIVOS MOBILE
+
+```
+src/
+  components/
+    mobile/          ← PASTA EXCLUSIVA MOBILE
+      MobileEditor/
+      MobileNav/
+      MobileCart/
+    layout/
+      MobileNavbar.tsx     ← mobile only
+      Header.tsx           ← NUNCA TOCAR NO MODO MOBILE
+```
+
+---
+
+## ✅ CHECKLIST OBRIGATÓRIO AO TERMINAR EDIÇÃO MOBILE
+
+Antes de qualquer commit de alteração mobile, confirmar:
+
+- [ ] Nenhum arquivo exclusivamente desktop foi modificado
+- [ ] Nenhuma classe `lg:` ou `xl:` foi alterada
+- [ ] Header/Footer desktop estão intactos e funcionais
+- [ ] Scroll funciona no iOS (usa `overflow-y: auto` + `-webkit-overflow-scrolling: touch`)
+- [ ] Confirmar ao usuário: `"✅ Desktop intacto. Apenas mobile foi editado."`
+
+---
+
 # GEMINI.md - Antigravity Kit
 
 > This file defines how the AI behaves in this workspace.
@@ -22,7 +130,7 @@ Agent activated → Check frontmatter "skills:" → Read SKILL.md (INDEX) → Re
 ### 2. Enforcement Protocol
 
 1. **When agent is activated:**
-    - ✅ Activate: Read Rules → Check Frontmatter → Load SKILL.md → Apply All.
+   - ✅ Activate: Read Rules → Check Frontmatter → Load SKILL.md → Apply All.
 2. **Forbidden:** Never skip reading agent rules or skill instructions. "Read → Understand → Apply" is mandatory.
 
 ---
