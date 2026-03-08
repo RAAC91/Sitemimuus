@@ -18,7 +18,6 @@ import { AppThemeProvider } from "@/providers/ThemeProvider"
 import { PostHogProvider } from "@/providers/PostHogProvider"
 import { GoogleAnalytics } from '@next/third-parties/google'
 import { SchemaOrg } from "@/components/seo/SchemaOrg"
-import { MobileNavbar } from "@/components/layout/MobileNavbarWrapper";
 
 import { SiteBackground } from "@/components/layout/SiteBackground"
 import { SpeedInsights } from "@vercel/speed-insights/next"
@@ -138,7 +137,6 @@ export default function RootLayout({
               />
               <SiteBackground />
               {children}
-              <MobileNavbar />
               <Toaster />
               <CartDrawer />
             </AppThemeProvider>

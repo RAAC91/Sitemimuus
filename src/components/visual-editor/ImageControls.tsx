@@ -19,8 +19,6 @@ interface ImageControlsProps {
     handleUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
     hideAddSection?: boolean;
     onlyShowSelected?: boolean;
-    isAdmin?: boolean;
-    onRecordDefault?: (layer: EditorLayer) => void;
 }
 
 export const ImageControls: React.FC<ImageControlsProps> = ({
@@ -37,8 +35,6 @@ export const ImageControls: React.FC<ImageControlsProps> = ({
     handleAiBackgroundRemoval,
     handleUpload,
     hideAddSection = false,
-    isAdmin,
-    onRecordDefault
 }) => {
     const imageLayers = layers.filter(l => l.type === 'image' || l.type === 'icon');
     const selectedLayer = imageLayers.find(l => l.id === expandedLayerId) ?? null;
@@ -310,22 +306,6 @@ export const ImageControls: React.FC<ImageControlsProps> = ({
                         >
                             Excluir Camada
                         </button>
-
-                        {/* ADMIN: RECORD POSITION */}
-                        {isAdmin && onRecordDefault && (
-                            <div className="flex flex-col gap-2 pt-4 mt-2 border-t border-slate-100">
-                                <button
-                                    onClick={() => onRecordDefault(selectedLayer)}
-                                    className="w-full py-3 px-4 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-amber-200 transition-all flex items-center justify-center gap-2 group"
-                                >
-                                    <Icons.Check className="w-4 h-4 group-hover:scale-110 transition-transform" />
-                                    Gravar como Padrão
-                                </button>
-                                <p className="text-[9px] text-amber-600 font-bold text-center uppercase tracking-tighter">
-                                    Salva posição, escala e rotação para este produto
-                                </p>
-                            </div>
-                        )}
                     </div>
                 </div>
             )}

@@ -16,8 +16,6 @@ interface TextControlsProps {
     ICON_CATEGORIES: Record<string, string[]>;
     onAddIcon: (url: string) => void;
     onNewTextChange?: (text: string) => void;
-    isAdmin?: boolean;
-    onRecordDefault?: (layer: EditorLayer) => void;
 }
 
 export const TextControls: React.FC<TextControlsProps> = ({
@@ -31,9 +29,7 @@ export const TextControls: React.FC<TextControlsProps> = ({
     setActiveIconCat,
     ICON_CATEGORIES,
     onAddIcon,
-    onNewTextChange,
-    isAdmin,
-    onRecordDefault
+    onNewTextChange
 }) => {
     const [newText, setNewText] = useState('');
     const [dynamicIcons, setDynamicIcons] = useState<Record<string, string[]>>({});
@@ -339,22 +335,6 @@ export const TextControls: React.FC<TextControlsProps> = ({
                                                         ))}
                                                     </div>
                                                 </div>
-
-                                                {/* ADMIN: RECORD POSITION */}
-                                                {isAdmin && onRecordDefault && (
-                                                    <div className="flex flex-col gap-2 pt-4 mt-2 border-t border-slate-100">
-                                                        <button
-                                                            onClick={() => onRecordDefault(layer)}
-                                                            className="w-full py-3 px-4 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-amber-200 transition-all flex items-center justify-center gap-2 group"
-                                                        >
-                                                            <Icons.Check className="w-4 h-4 group-hover:scale-110 transition-transform" />
-                                                            Gravar como Padrão
-                                                        </button>
-                                                        <p className="text-[9px] text-amber-600 font-bold text-center uppercase tracking-tighter">
-                                                            Salva posição, fonte e cor para este produto
-                                                        </p>
-                                                    </div>
-                                                )}
                                             </div>
                                         </div>
                                     )}

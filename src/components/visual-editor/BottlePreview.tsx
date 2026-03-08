@@ -28,11 +28,6 @@ interface BottlePreviewProps {
     // Color picker
     selectedSku?: string;
     onSelectSku?: (sku: string) => void;
-    // HUD Actions
-    onDuplicateLayer?: (id: string) => void;
-    onMoveLayerUp?: (id: string) => void;
-    onMoveLayerDown?: (id: string) => void;
-    onDeleteLayer?: (id: string) => void;
 }
 
 export const BottlePreview: React.FC<BottlePreviewProps> = ({
@@ -52,10 +47,6 @@ export const BottlePreview: React.FC<BottlePreviewProps> = ({
     selectedSku: _selectedSku,
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     onSelectSku: _onSelectSku,
-    onDuplicateLayer,
-    onMoveLayerUp,
-    onMoveLayerDown,
-    onDeleteLayer,
 }) => {
     const bottleContainerRef = useRef<HTMLDivElement>(null);
     const [zoomLevel, setZoomLevel] = useState(1.1);
@@ -65,7 +56,6 @@ export const BottlePreview: React.FC<BottlePreviewProps> = ({
     const [mouseDownStart, setMouseDownStart] = useState<{ x: number; y: number } | null>(null);
     const [resizingLayerId, setResizingLayerId] = useState<string | null>(null);
     const [rotatingLayerId, setRotatingLayerId] = useState<string | null>(null);
-    const [dragOffset, setDragOffset] = useState<{ x: number; y: number } | null>(null);
     const [isInspectMode, setIsInspectMode] = useState(false);
 
     const isZoomed = (zoomProp || zoomLevel) > 1.1;
@@ -105,18 +95,6 @@ export const BottlePreview: React.FC<BottlePreviewProps> = ({
             onSelectLayer(layerId);
         }
 
-        const layer = layers.find(l => l.id === layerId);
-        if (layer && bottleContainerRef.current) {
-            const rect = bottleContainerRef.current.getBoundingClientRect();
-            // Calculate where the mouse is relative to the layer's center in percentage points
-            const mouseXPercent = ((e.clientX - rect.left) / rect.width) * 100;
-            const mouseYPercent = ((e.clientY - rect.top) / rect.height) * 100;
-            setDragOffset({
-                x: mouseXPercent - layer.x,
-                y: mouseYPercent - layer.y
-            });
-        }
-
         setDraggingLayerId(layerId);
         setDragStart({ x: e.clientX, y: e.clientY });
     };
@@ -141,16 +119,15 @@ export const BottlePreview: React.FC<BottlePreviewProps> = ({
         if (!layer) return;
 
         const rect = bottleContainerRef.current.getBoundingClientRect();
-        const aspect = ENGINE_CONFIG.hdWidth / ENGINE_CONFIG.hdHeight;
-        const currentBottleHeight = rect.height;
-        const currentBottleWidth = currentBottleHeight * aspect;
+        const deltaX = e.clientX - dragStart.x;
+        const deltaY = e.clientY - dragStart.y;
 
-        const percentX = ((e.clientX - rect.left) / currentBottleWidth) * 100;
-        const percentY = ((e.clientY - rect.top) / currentBottleHeight) * 100;
+        const percentX = (deltaX / rect.width) * 100;
+        const percentY = (deltaY / rect.height) * 100;
 
         onUpdateLayer(draggingLayerId, {
-            x: Math.max(0, Math.min(100, percentX - (dragOffset?.x || 0))),
-            y: Math.max(0, percentY - (dragOffset?.y || 0))
+            x: Math.max(0, Math.min(100, layer.x + percentX)),
+            y: Math.max(0, layer.y + percentY)
         });
 
         setDragStart({ x: e.clientX, y: e.clientY });
@@ -161,80 +138,16 @@ export const BottlePreview: React.FC<BottlePreviewProps> = ({
         setResizingLayerId(null);
         setRotatingLayerId(null);
         setDragStart(null);
-        setDragOffset(null);
-    };
-
-    const handleTouchStart = (e: React.TouchEvent) => {
-        const touch = e.touches[0];
-        setMouseDownStart({ x: touch.clientX, y: touch.clientY });
-    };
-
-    const handleLayerTouchStart = (e: React.TouchEvent, layerId: string) => {
-        const touch = e.touches[0];
-        e.stopPropagation(); 
-        if (e.cancelable) e.preventDefault();
-
-        if (!draggingLayerId) {
-            onSelectLayer(layerId);
-        }
-
-        const layer = layers.find(l => l.id === layerId);
-        if (layer && bottleContainerRef.current) {
-            const rect = bottleContainerRef.current.getBoundingClientRect();
-            const mouseXPercent = ((touch.clientX - rect.left) / rect.width) * 100;
-            const mouseYPercent = ((touch.clientY - rect.top) / rect.height) * 100;
-            setDragOffset({
-                x: mouseXPercent - layer.x,
-                y: mouseYPercent - layer.y
-            });
-        }
-
-        setDraggingLayerId(layerId);
-        setDragStart({ x: touch.clientX, y: touch.clientY });
-    };
-
-    const handleTouchMove = (e: React.TouchEvent) => {
-        const touch = e.touches[0];
-        
-        if (resizingLayerId || rotatingLayerId || draggingLayerId) {
-            if (e.cancelable) e.preventDefault();
-        }
-
-        if (resizingLayerId || rotatingLayerId) {
-            handleTransformMove({ clientX: touch.clientX, clientY: touch.clientY }); 
-            return;
-        }
-
-        if (!draggingLayerId || !dragStart || !bottleContainerRef.current) return;
-
-        const layer = layers.find(l => l.id === draggingLayerId);
-        if (!layer) return;
-
-        const rect = bottleContainerRef.current.getBoundingClientRect();
-        const aspect = ENGINE_CONFIG.hdWidth / ENGINE_CONFIG.hdHeight;
-        const currentBottleHeight = rect.height;
-        const currentBottleWidth = currentBottleHeight * aspect;
-
-        const percentX = ((touch.clientX - rect.left) / currentBottleWidth) * 100;
-        const percentY = ((touch.clientY - rect.top) / currentBottleHeight) * 100;
-
-        onUpdateLayer(draggingLayerId, {
-            x: Math.max(0, Math.min(100, percentX - (dragOffset?.x || 0))),
-            y: Math.max(0, percentY - (dragOffset?.y || 0))
-        });
-
-        setDragStart({ x: touch.clientX, y: touch.clientY });
     };
 
 
 
-    const handleTransformMove = (e: { clientX: number; clientY: number }) => {
+    const handleTransformMove = (e: React.MouseEvent) => {
         if (resizingLayerId && dragStart) {
             const layer = layers.find(l => l.id === resizingLayerId);
             if (!layer) return;
             const deltaY = e.clientY - dragStart.y;
-            // More sensitive scaling for touch
-            const sizeChange = -deltaY * 2.5;
+            const sizeChange = -deltaY * 2;
             onUpdateLayer(resizingLayerId, {
                 size: Math.max(50, Math.min(2000, layer.size + sizeChange))
             });
@@ -322,12 +235,9 @@ export const BottlePreview: React.FC<BottlePreviewProps> = ({
                     ref={bottleContainerRef}
                     className={`relative w-full h-full max-h-full overflow-hidden bottle-only-capture flex items-center justify-center translate-x-0 transition-colors duration-500 ${hideCanvasBackground ? 'bg-transparent' : 'bg-[#fcfcfc]'}`}
                     onMouseDown={handleContainerMouseDown}
-                    onTouchStart={handleTouchStart}
                     onClick={handleZoomToggle}
                     onMouseMove={handleMouseMove}
-                    onTouchMove={handleTouchMove}
                     onMouseUp={handleMouseUp}
-                    onTouchEnd={handleMouseUp}
                     onMouseLeave={handleMouseUp}
                     style={{
                         transform: `scale(${zoomProp || zoomLevel}) translateY(${yOffset}px)`,
@@ -428,7 +338,6 @@ export const BottlePreview: React.FC<BottlePreviewProps> = ({
                                                     <div
                                                         key={layer.id}
                                                         onMouseDown={(e) => handleLayerMouseDown(e, layer.id)}
-                                                        onTouchStart={(e) => handleLayerTouchStart(e, layer.id)}
                                                         onClick={(e) => e.stopPropagation()}
                                                         style={{
                                                             position: 'absolute',
@@ -498,27 +407,9 @@ export const BottlePreview: React.FC<BottlePreviewProps> = ({
                                                             {layer.font === 'Loverine-otf' ? `(${layer.content})` : layer.content}
                                                         </span>
                                                         {isSelected && (
-                                                            <div className="absolute inset-0 border-2 border-blue-500/50 rounded-lg pointer-events-none">
-                                                                {/* Hide handles on mobile to avoid clutter; use bottom panel sliders instead */}
-                                                                <div className="hidden lg:block">
-                                                                    {/* Resize handle */}
-                                                                    <div 
-                                                                        onMouseDown={(e) => { e.stopPropagation(); setResizingLayerId(layer.id); setDragStart({ x: e.clientX, y: e.clientY }); }}
-                                                                        onTouchStart={(e) => { e.stopPropagation(); const touch = e.touches[0]; setResizingLayerId(layer.id); setDragStart({ x: touch.clientX, y: touch.clientY }); }}
-                                                                        className="absolute -bottom-5 -right-5 w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center cursor-ns-resize shadow-lg z-[200] border-2 border-white pointer-events-auto"
-                                                                    >
-                                                                        <Icons.Maximize2 className="w-5 h-5 text-white" />
-                                                                    </div>
-                                                                    {/* Rotation handle */}
-                                                                    <div 
-                                                                        onMouseDown={(e) => { e.stopPropagation(); setRotatingLayerId(layer.id); setDragStart({ x: e.clientX, y: e.clientY }); }}
-                                                                        onTouchStart={(e) => { e.stopPropagation(); const touch = e.touches[0]; setRotatingLayerId(layer.id); setDragStart({ x: touch.clientX, y: touch.clientY }); }}
-                                                                        className="absolute -top-12 left-1/2 -translate-x-1/2 w-10 h-10 bg-rose-500 rounded-full flex items-center justify-center cursor-alias shadow-lg z-[200] border-2 border-white pointer-events-auto"
-                                                                    >
-                                                                        <Icons.Rotate className="w-5 h-5 text-white" />
-                                                                    </div>
-                                                                </div>
-                                                            </div>
+                                                            <>
+                                                                {/* Handles removed as per user request */}
+                                                            </>
                                                         )}
                                                     </div>
                                                 );
@@ -529,7 +420,6 @@ export const BottlePreview: React.FC<BottlePreviewProps> = ({
                                                     <div
                                                         key={layer.id}
                                                         onMouseDown={(e) => handleLayerMouseDown(e, layer.id)}
-                                                        onTouchStart={(e) => handleLayerTouchStart(e, layer.id)}
                                                         onClick={(e) => e.stopPropagation()}
                                                         style={{
                                                             position: 'absolute',
@@ -555,29 +445,6 @@ export const BottlePreview: React.FC<BottlePreviewProps> = ({
                                                                 mixBlendMode: sku === 'Preto' ? 'screen' : 'multiply',
                                                             }}
                                                         />
-                                                        {isSelected && (
-                                                            <div className="absolute inset-0 border-2 border-blue-500/50 rounded-lg pointer-events-none">
-                                                                {/* Hide handles on mobile to avoid clutter */}
-                                                                <div className="hidden lg:block">
-                                                                    {/* Resize handle */}
-                                                                    <div 
-                                                                        onMouseDown={(e) => { e.stopPropagation(); setResizingLayerId(layer.id); setDragStart({ x: e.clientX, y: e.clientY }); }}
-                                                                        onTouchStart={(e) => { e.stopPropagation(); const touch = e.touches[0]; setResizingLayerId(layer.id); setDragStart({ x: touch.clientX, y: touch.clientY }); }}
-                                                                        className="absolute -bottom-5 -right-5 w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center cursor-ns-resize shadow-lg z-[200] border-2 border-white pointer-events-auto"
-                                                                    >
-                                                                        <Icons.Maximize2 className="w-5 h-5 text-white" />
-                                                                    </div>
-                                                                    {/* Rotation handle */}
-                                                                    <div 
-                                                                        onMouseDown={(e) => { e.stopPropagation(); setRotatingLayerId(layer.id); setDragStart({ x: e.clientX, y: e.clientY }); }}
-                                                                        onTouchStart={(e) => { e.stopPropagation(); const touch = e.touches[0]; setRotatingLayerId(layer.id); setDragStart({ x: touch.clientX, y: touch.clientY }); }}
-                                                                        className="absolute -top-12 left-1/2 -translate-x-1/2 w-10 h-10 bg-rose-500 rounded-full flex items-center justify-center cursor-alias shadow-lg z-[200] border-2 border-white pointer-events-auto"
-                                                                    >
-                                                                        <Icons.Rotate className="w-5 h-5 text-white" />
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        )}
                                                     </div>
                                                 );
                                             }

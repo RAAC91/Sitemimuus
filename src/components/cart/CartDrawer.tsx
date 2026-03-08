@@ -73,7 +73,7 @@ export function CartDrawer() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={closeCart}
-            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-999"
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[999]"
           />
 
           {/* Drawer */}
@@ -82,7 +82,7 @@ export function CartDrawer() {
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
             transition={{ type: "spring", damping: 25, stiffness: 200 }}
-            className="fixed right-0 top-0 bottom-0 w-full max-w-lg bg-white/90 dark:bg-slate-900/95 backdrop-blur-3xl z-1000 flex flex-col shadow-2xl transition-all border-l border-white/50 dark:border-slate-800"
+            className="fixed right-0 top-0 bottom-0 w-full max-w-lg bg-white/90 dark:bg-slate-900/95 backdrop-blur-3xl z-[1000] flex flex-col shadow-2xl transition-all border-l border-white/50 dark:border-slate-800"
           >
             {/* Header */}
             <div className="px-8 py-6 flex items-center justify-between">
@@ -154,30 +154,26 @@ export function CartDrawer() {
                                         <div className="text-2xl font-bold text-slate-800 dark:text-slate-100">
                                             R$ {item.price.toFixed(2)}
                                         </div>
-                                        <div className="flex items-center w-fit bg-pastelSky/30 dark:bg-slate-800/50 rounded-2xl p-1.5 border border-white/40 dark:border-slate-700/50">
+                                        <div className="flex items-center w-fit bg-pastelSky/30 dark:bg-slate-800/50 rounded-2xl p-1 border border-white/40 dark:border-slate-700/50">
                                             <button 
                                                 onClick={() => updateQuantity(item.id, item.quantity - 1)}
                                                 disabled={item.quantity <= 1}
-                                                className="w-10 h-10 flex items-center justify-center rounded-xl bg-white/90 dark:bg-slate-700 text-slate-500 hover:text-accentPink smooth-transition shadow-sm disabled:opacity-50 active:scale-90"
-                                                aria-label="Diminuir quantidade"
+                                                className="w-8 h-8 flex items-center justify-center rounded-lg bg-white/90 dark:bg-slate-700 text-slate-500 hover:text-accentPink smooth-transition shadow-sm disabled:opacity-50"
                                             >
-                                                <Minus size={16} />
+                                                <Minus size={14} />
                                             </button>
-                                            <span className="px-5 font-bold text-slate-700 dark:text-slate-200 text-base tabular-nums">{item.quantity}</span>
+                                            <span className="px-4 font-bold text-slate-700 dark:text-slate-200 text-sm">{item.quantity}</span>
                                             <button 
                                                 onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                                                className="w-10 h-10 flex items-center justify-center rounded-xl bg-white/90 dark:bg-slate-700 text-slate-500 hover:text-accentPink smooth-transition shadow-sm active:scale-90"
-                                                aria-label="Aumentar quantidade"
+                                                className="w-8 h-8 flex items-center justify-center rounded-lg bg-white/90 dark:bg-slate-700 text-slate-500 hover:text-accentPink smooth-transition shadow-sm"
                                             >
-                                                <Plus size={16} />
+                                                <Plus size={14} />
                                             </button>
                                         </div>
                                         <button 
                                             onClick={() => removeItem(item.id)}
-                                            className="py-3 px-1 -ml-1 text-xs text-slate-400 hover:text-red-400 font-bold uppercase tracking-widest active:scale-95 transition-all outline-hidden flex items-center gap-1.5"
-                                            aria-label="Remover item"
+                                            className="text-xs text-slate-400 hover:text-red-400 font-bold uppercase tracking-wide"
                                         >
-                                            <X size={12} className="opacity-50" />
                                             Remover
                                         </button>
                                     </div>

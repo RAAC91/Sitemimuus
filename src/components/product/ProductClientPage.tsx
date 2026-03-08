@@ -20,8 +20,10 @@ export function ProductClientPage({ product }: ProductClientPageProps) {
   const router = useRouter();
   const { resolvedTheme } = useTheme();
   
+  // standard pattern to avoid hydration mismatch
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
+    // defer state update slightly to avoid synchronous setState warning during initial render
     const timer = setTimeout(() => setMounted(true), 0);
     return () => clearTimeout(timer);
   }, []);
@@ -54,6 +56,7 @@ export function ProductClientPage({ product }: ProductClientPageProps) {
   };
 
   const handleBuyNow = () => {
+    // Add to cart and immediately go to checkout
     addItem({
       productId: product.id.toString(),
       name: product.name,
@@ -75,32 +78,30 @@ export function ProductClientPage({ product }: ProductClientPageProps) {
     <div className="min-h-screen relative overflow-hidden antialiased">
       <BackgroundEffects />
       
-      <main className="max-w-[1440px] mx-auto px-4 md:px-10 lg:px-20 pt-20 md:pt-32 pb-24 md:pb-12 font-display relative z-10">
-          {/* Breadcrumb - Hide on small mobile to save space */}
-          <div className="hidden sm:block">
-            <Breadcrumb 
-                items={[
-                    { label: "PRODUTOS", href: "/produtos" },
-                    { label: product.name }
-                ]}
-                className="mb-8 ml-4"
-            />
-          </div>
+      <main className="max-w-[1440px] mx-auto px-4 md:px-10 lg:px-20 pt-32 pb-12 font-display relative z-10">
+                    {/* Breadcrumb */}
+                    <Breadcrumb 
+                        items={[
+                            { label: "PRODUTOS", href: "/produtos" },
+                            { label: product.name }
+                        ]}
+                        className="mb-8 ml-4"
+                    />
 
           {/* Main Content Card with Glassmorphism */}
-          <div className={`rounded-3xl overflow-hidden shadow-[0_32px_64px_-16px_rgba(0,0,0,0.1)] backdrop-blur-2xl p-4 md:p-12 lg:p-16 border transition-all duration-500 hover:shadow-[0_48px_80px_-20px_rgba(0,0,0,0.15)] ${
+          <div className={`rounded-3xl overflow-hidden shadow-[0_32px_64px_-16px_rgba(0,0,0,0.1)] backdrop-blur-2xl p-6 md:p-12 lg:p-16 border transition-all duration-500 hover:shadow-[0_48px_80px_-20px_rgba(0,0,0,0.15)] ${
             isDark
               ? 'bg-[#0f172a]/60 border-white/10'
               : 'bg-white/40 border-white/50'
           }`}>
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-20 items-start">
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-20 items-start">
                   {/* LEFT COL: GALLERY */}
-                  <div className="lg:col-span-7 flex flex-col md:flex-row-reverse gap-4 md:gap-8 lg:sticky lg:top-24">
+                  <div className="lg:col-span-7 flex flex-col md:flex-row-reverse gap-8 sticky top-24">
                       {/* Main View */}
                       <div className="flex-1">
                           <motion.div 
                               layoutId={`image-${product.id}`}
-                              className={`aspect-square md:aspect-4/5 rounded-2xl md:rounded-3xl overflow-hidden relative group cursor-zoom-in border shadow-sm transition-colors duration-500 ${
+                              className={`aspect-square md:aspect-4/5 rounded-3xl overflow-hidden relative group cursor-zoom-in border shadow-sm transition-colors duration-500 ${
                                 isDark ? 'bg-white/5 border-white/10' : 'bg-white/80 border-white/20'
                               }`}
                               onClick={() => setShowZoom(true)}
@@ -370,24 +371,7 @@ export function ProductClientPage({ product }: ProductClientPageProps) {
               )}
           </AnimatePresence>
       </main>
-
-      {/* Mobile Sticky Buy Bar */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 p-4 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-t border-white/20 flex gap-3 shadow-[0_-10px_30px_rgba(0,0,0,0.1)] pb-safe-bottom">
-          <button 
-              onClick={handleAddToCart}
-              className="flex-1 h-14 rounded-2xl bg-white dark:bg-slate-800 border border-brand-black/10 dark:border-white/10 flex items-center justify-center gap-2 font-bold text-xs uppercase tracking-widest text-brand-black dark:text-white"
-          >
-              <span className="material-symbols-outlined text-lg">shopping_bag</span>
-              Add
-          </button>
-          <button 
-              onClick={handleBuyNow}
-              className="flex-[2] h-14 rounded-2xl bg-brand-black text-white flex items-center justify-center gap-2 font-bold text-xs uppercase tracking-widest shadow-lg shadow-brand-black/20"
-          >
-              <span className="material-symbols-outlined text-lg">bolt</span>
-              Comprar Agora
-          </button>
-      </div>
     </div>
   );
 }
+

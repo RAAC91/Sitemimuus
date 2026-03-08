@@ -1,8 +1,7 @@
 
 "use client"
 
-import React, { useState, useCallback, useMemo, useRef } from 'react';
-import Link from 'next/link';
+import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { generateStickerDesign, removeImageBackground } from '@/services/ai/gemini';
 import { SKUS, ICON_CATEGORIES, EDITOR_COLORS, FONTS, type EditorLayer } from './constants';
 import { Icons } from './Icons';
@@ -17,7 +16,6 @@ import { useAuth } from '@/providers/AuthProvider';
 import { useAdmin } from '@/hooks/useAdmin';
 import { toast } from 'sonner';
 import { v4 as uuidv4 } from 'uuid';
-import { SelectedLayerHUD } from './SelectedLayerHUD';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toCanvas } from 'html-to-image';
 import { createProduct } from '@/actions/admin-actions';
@@ -69,7 +67,7 @@ export const BottleEditor: React.FC<BottleEditorProps> = ({ onAddToCart, onBack,
     const [showShowcase, setShowShowcase] = useState(false);
     const [showShareModal, setShowShareModal] = useState(false);
     const [generatedPreview] = useState<string | null>(null);
-
+    const [activeMobileTab, setActiveMobileTab] = useState<'color' | 'material' | 'stamps' | 'text' | 'summary' | null>('color');
     
     // POSITION CALIBRATION - Separate positions for each layer type
     const isMobileViewport = () =>
@@ -77,10 +75,7 @@ export const BottleEditor: React.FC<BottleEditorProps> = ({ onAddToCart, onBack,
 
     const [defaultTextPosition, setDefaultTextPosition] = useState<{ x: number; y: number }>(() => {
         if (typeof window !== 'undefined') {
-            const skuKey = `mimuus_default_position_text_${sku}`;
-            const genericKey = 'mimuus_default_position_text';
-            const saved = localStorage.getItem(skuKey) || localStorage.getItem(genericKey);
-            
+            const saved = localStorage.getItem('mimuus_default_position_text');
             // On mobile, use a safe default; on desktop, restore persisted value
             if (isMobileViewport()) return { x: 50, y: 55 };
             return saved ? JSON.parse(saved) : { x: 50, y: 90 };
@@ -91,12 +86,9 @@ export const BottleEditor: React.FC<BottleEditorProps> = ({ onAddToCart, onBack,
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const [defaultImagePosition, setDefaultImagePosition] = useState<{ x: number; y: number }>(() => {
         if (typeof window !== 'undefined') {
-            const skuKey = `mimuus_default_position_image_${sku}`;
-            const genericKey = 'mimuus_default_position_image';
-            const saved = localStorage.getItem(skuKey) || localStorage.getItem(genericKey);
-            
             // On mobile use centered safe default — desktop y:70 doesn't map to 1:1 canvas
             if (isMobileViewport()) return { x: 50, y: 45 };
+            const saved = localStorage.getItem('mimuus_default_position_image');
             return saved ? JSON.parse(saved) : { x: 50, y: 70 };
         }
         return { x: 50, y: 70 };
@@ -104,36 +96,27 @@ export const BottleEditor: React.FC<BottleEditorProps> = ({ onAddToCart, onBack,
     
     const [defaultIconPosition, setDefaultIconPosition] = useState<{ x: number; y: number }>(() => {
         if (typeof window !== 'undefined') {
-            const skuKey = `mimuus_default_position_icon_${sku}`;
-            const genericKey = 'mimuus_default_position_icon';
-            const saved = localStorage.getItem(skuKey) || localStorage.getItem(genericKey);
-            
             // On mobile use centered safe default — desktop-calibrated x/y don't apply
             if (isMobileViewport()) return { x: 50, y: 45 };
+            const saved = localStorage.getItem('mimuus_default_position_icon');
             return saved ? JSON.parse(saved) : { x: 63.1, y: 17.4 };
         }
         return { x: 63.1, y: 17.4 };
     });
     const [defaultIconSize, setDefaultIconSize] = useState(() => {
         if (typeof window !== 'undefined') {
-            const skuKey = `mimuus_default_size_icon_${sku}`;
-            const genericKey = 'mimuus_default_size_icon';
-            const saved = localStorage.getItem(skuKey) || localStorage.getItem(genericKey);
-            
             // On mobile scale down for the 1:1 square preview
             if (isMobileViewport()) return 80;
+            const saved = localStorage.getItem('mimuus_default_size_icon');
             return saved ? Number(saved) : 116;
         }
         return 116;
     });
     const [defaultIconRotation, setDefaultIconRotation] = useState(() => {
         if (typeof window !== 'undefined') {
-            const skuKey = `mimuus_default_rotation_icon_${sku}`;
-            const genericKey = 'mimuus_default_rotation_icon';
-            const saved = localStorage.getItem(skuKey) || localStorage.getItem(genericKey);
-            
             // On mobile never apply the desktop-calibrated rotation (e.g. -90°)
             if (isMobileViewport()) return 0;
+            const saved = localStorage.getItem('mimuus_default_rotation_icon');
             return saved ? Number(saved) : -90;
         }
         return -90;
@@ -174,39 +157,7 @@ export const BottleEditor: React.FC<BottleEditorProps> = ({ onAddToCart, onBack,
     // Mobile scroll container ref
     const mobileScrollRef = useRef<HTMLDivElement>(null);
 
-    // Auto-scroll to relevant section removed as per user request to avoid losing sight of the bottle
-
-    // --- ADMIN: POSITION PERSISTENCE ---
-    const handleRecordDefault = (layer: EditorLayer) => {
-        if (!isAdmin) return;
-        
-        const type = layer.type === 'icon' ? 'icon' : (layer.type === 'image' ? 'image' : 'text');
-        const baseKey = `mimuus_default_position_${type}`;
-        const skuKey = `${baseKey}_${sku}`;
-        
-        const posData = { x: layer.x, y: layer.y };
-        localStorage.setItem(skuKey, JSON.stringify(posData));
-        localStorage.setItem(baseKey, JSON.stringify(posData)); // Update generic fallback too
-        
-        if (type === 'icon') {
-            localStorage.setItem(`mimuus_default_size_icon_${sku}`, String(layer.size));
-            localStorage.setItem(`mimuus_default_size_icon`, String(layer.size));
-            localStorage.setItem(`mimuus_default_rotation_icon_${sku}`, String(layer.rotation || 0));
-            localStorage.setItem(`mimuus_default_rotation_icon`, String(layer.rotation || 0));
-            
-            setDefaultIconPosition(posData);
-            setDefaultIconSize(layer.size);
-            setDefaultIconRotation(layer.rotation || 0);
-        } else if (type === 'text') {
-            setDefaultTextPosition(posData);
-        } else if (type === 'image') {
-            setDefaultImagePosition(posData);
-        }
-        
-        console.log(`[ADMIN] Padrões salvos para ${sku}:`, { type, posData, size: layer.size, rotation: layer.rotation });
-        alert(`Calibração de "${type}" gravada com sucesso para o produto: ${sku}`);
-    };
-    /*
+    // Auto-scroll to relevant section when a layer is selected on mobile
     useEffect(() => {
         if (!selectedLayerId || !mobileScrollRef.current) return;
         if (typeof window === 'undefined' || window.innerWidth >= 1024) return;
@@ -219,7 +170,6 @@ export const BottleEditor: React.FC<BottleEditorProps> = ({ onAddToCart, onBack,
             mobileScrollRef.current.scrollTo({ top: scrollTop, behavior: 'smooth' });
         }
     }, [selectedLayerId, layers]);
-    */
 
     // GAMIFICATION
     const { addXP } = useGamification();
@@ -289,43 +239,7 @@ export const BottleEditor: React.FC<BottleEditorProps> = ({ onAddToCart, onBack,
     const deleteLayer = useCallback((id: string) => {
         setLayers(prev => prev.filter(l => l.id !== id));
         if (selectedLayerId === id) setSelectedLayerId(null);
-        toast.success('Camada removida');
     }, [selectedLayerId]);
-
-    const duplicateLayer = useCallback((id: string) => {
-        const layer = layers.find(l => l.id === id);
-        if (layer) {
-            const newLayer = { 
-                ...layer, 
-                id: uuidv4(), 
-                x: Math.min(95, layer.x + 5), 
-                y: Math.min(95, layer.y + 5) 
-            };
-            setLayers(prev => [...prev, newLayer]);
-            setSelectedLayerId(newLayer.id);
-            toast.success('Camada duplicada!');
-        }
-    }, [layers]);
-
-    const moveLayerUp = useCallback((id: string) => {
-        setLayers(prev => {
-            const index = prev.findIndex(l => l.id === id);
-            if (index === -1 || index === prev.length - 1) return prev;
-            const newLayers = [...prev];
-            [newLayers[index], newLayers[index + 1]] = [newLayers[index + 1], newLayers[index]];
-            return newLayers;
-        });
-    }, []);
-
-    const moveLayerDown = useCallback((id: string) => {
-        setLayers(prev => {
-            const index = prev.findIndex(l => l.id === id);
-            if (index === -1 || index === 0) return prev;
-            const newLayers = [...prev];
-            [newLayers[index], newLayers[index - 1]] = [newLayers[index - 1], newLayers[index]];
-            return newLayers;
-        });
-    }, []);
 
     const handleSelectLayer = useCallback((id: string | null) => {
         setSelectedLayerId(id);
@@ -686,17 +600,12 @@ export const BottleEditor: React.FC<BottleEditorProps> = ({ onAddToCart, onBack,
                 {/* LEFT: Back + Logo + Nav */}
                 <div className="flex items-center gap-6">
                     <div className="flex items-center gap-3">
-                        <button 
-                            onClick={onBack} 
-                            title="Voltar" 
-                            className="p-2 -ml-1 rounded-[10px] hover:bg-slate-100 transition-colors text-slate-500 active:scale-90 touch-none flex items-center justify-center min-w-[36px] min-h-[36px]"
-                            aria-label="Voltar"
-                        >
-                            <Icons.ArrowLeft className="w-5 h-5" />
+                        <button onClick={onBack} title="Voltar" className="p-1.5 rounded-[8px] hover:bg-slate-100 transition-colors text-slate-500">
+                            <Icons.ArrowLeft className="w-4 h-4" />
                         </button>
-                        <Link href="/" className="text-xl font-black tracking-tight text-slate-900 shrink-0 hover:scale-105 transition-transform active:scale-95 cursor-pointer">
+                        <span className="text-xl font-black tracking-tight text-slate-900 shrink-0">
                             mi<span className="text-[#FF4586]">mu</span>us<span className="text-[#00C9D4]">.</span>
-                        </Link>
+                        </span>
                         <span className="text-[9px] font-black uppercase text-[#FF4586] bg-[#FF4586]/10 border border-[#FF4586]/20 px-2 py-0.5 rounded-[4px] tracking-widest hidden sm:inline">Studio</span>
                     </div>
 
@@ -769,10 +678,6 @@ export const BottleEditor: React.FC<BottleEditorProps> = ({ onAddToCart, onBack,
                             onUndo={() => {}} onRedo={() => {}} onReset={() => {}}
                             canUndo={canUndo} canRedo={canRedo}
                             onSelectLayer={handleSelectLayer} onUpdateLayer={updateLayer}
-                            onDuplicateLayer={duplicateLayer}
-                            onMoveLayerUp={moveLayerUp}
-                            onMoveLayerDown={moveLayerDown}
-                            onDeleteLayer={deleteLayer}
                             draftText={draftText} draftTextPosition={defaultTextPosition}
                             hideCanvasBackground={true}
                             hideUI={true}
@@ -856,7 +761,6 @@ export const BottleEditor: React.FC<BottleEditorProps> = ({ onAddToCart, onBack,
                                     isBusy={isBusy} aiPrompt={aiPrompt} setAiPrompt={setAiPrompt} isAiLoading={isAiLoading}
                                     handleAiGenerate={handleAiGenerate} handleAiBackgroundRemoval={handleAiBackgroundRemoval}
                                     handleUpload={handleUpload} hideAddSection={false}
-                                    isAdmin={isAdmin} onRecordDefault={handleRecordDefault}
                                 />
                             </div>
 
@@ -875,41 +779,6 @@ export const BottleEditor: React.FC<BottleEditorProps> = ({ onAddToCart, onBack,
                                             className="w-7 h-7 rounded-full bg-slate-200 hover:bg-red-100 hover:text-red-500 transition-all flex items-center justify-center text-slate-500">
                                             <Icons.X className="w-3.5 h-3.5" />
                                         </button>
-                                    </div>
-
-                                    {/* Ações Rápidas */}
-                                    <div className="flex items-center gap-2">
-                                        <button 
-                                            onClick={() => duplicateLayer(selectedLayer.id)}
-                                            title="Duplicar"
-                                            className="flex-1 flex items-center justify-center gap-2 py-2 bg-white border border-slate-200 rounded-xl text-[10px] font-black uppercase tracking-wider text-slate-600 active:bg-slate-100"
-                                        >
-                                            <Icons.Copy className="w-3.5 h-3.5 text-indigo-500" />
-                                            Duplicar
-                                        </button>
-                                        <div className="flex gap-2">
-                                            <button 
-                                                onClick={() => moveLayerUp(selectedLayer.id)}
-                                                title="Trazer para Frente"
-                                                className="w-9 h-9 flex items-center justify-center bg-white border border-slate-200 rounded-xl text-slate-600 active:bg-slate-100"
-                                            >
-                                                <Icons.ArrowUp className="w-4 h-4" />
-                                            </button>
-                                            <button 
-                                                onClick={() => moveLayerDown(selectedLayer.id)}
-                                                title="Enviar para Trás"
-                                                className="w-9 h-9 flex items-center justify-center bg-white border border-slate-200 rounded-xl text-slate-600 active:bg-slate-100"
-                                            >
-                                                <Icons.ArrowDown className="w-4 h-4" />
-                                            </button>
-                                            <button 
-                                                onClick={() => deleteLayer(selectedLayer.id)}
-                                                title="Remover"
-                                                className="w-9 h-9 flex items-center justify-center bg-red-50 border border-red-100 rounded-xl text-red-500 active:bg-red-100"
-                                            >
-                                                <Icons.Trash className="w-4 h-4" />
-                                            </button>
-                                        </div>
                                     </div>
 
                                     <div className="h-px bg-slate-200" />
@@ -996,7 +865,6 @@ export const BottleEditor: React.FC<BottleEditorProps> = ({ onAddToCart, onBack,
                                     onUpdateLayer={updateLayer} onAddText={handleAddText} onDeleteLayer={deleteLayer}
                                     activeIconCat={activeIconCat} setActiveIconCat={setActiveIconCat}
                                     ICON_CATEGORIES={ICON_CATEGORIES} onAddIcon={handleAddIcon} onNewTextChange={setDraftText}
-                                    isAdmin={isAdmin} onRecordDefault={handleRecordDefault}
                                 />
                             </div>
 
@@ -1016,41 +884,6 @@ export const BottleEditor: React.FC<BottleEditorProps> = ({ onAddToCart, onBack,
                                             className="w-7 h-7 rounded-full bg-slate-200 hover:bg-red-100 hover:text-red-500 transition-all flex items-center justify-center text-slate-500">
                                             <Icons.X className="w-3.5 h-3.5" />
                                         </button>
-                                    </div>
-
-                                    {/* Ações Rápidas Texto */}
-                                    <div className="flex items-center gap-2">
-                                        <button 
-                                            onClick={() => duplicateLayer(selectedLayer.id)}
-                                            title="Duplicar"
-                                            className="flex-1 flex items-center justify-center gap-2 py-2 bg-white border border-slate-200 rounded-xl text-[10px] font-black uppercase tracking-wider text-slate-600 active:bg-slate-100"
-                                        >
-                                            <Icons.Copy className="w-3.5 h-3.5 text-rose-500" />
-                                            Duplicar
-                                        </button>
-                                        <div className="flex gap-2">
-                                            <button 
-                                                onClick={() => moveLayerUp(selectedLayer.id)}
-                                                title="Trazer para Frente"
-                                                className="w-9 h-9 flex items-center justify-center bg-white border border-slate-200 rounded-xl text-slate-600 active:bg-slate-100"
-                                            >
-                                                <Icons.ArrowUp className="w-4 h-4" />
-                                            </button>
-                                            <button 
-                                                onClick={() => moveLayerDown(selectedLayer.id)}
-                                                title="Enviar para Trás"
-                                                className="w-9 h-9 flex items-center justify-center bg-white border border-slate-200 rounded-xl text-slate-600 active:bg-slate-100"
-                                            >
-                                                <Icons.ArrowDown className="w-4 h-4" />
-                                            </button>
-                                            <button 
-                                                onClick={() => deleteLayer(selectedLayer.id)}
-                                                title="Remover"
-                                                className="w-9 h-9 flex items-center justify-center bg-red-50 border border-red-100 rounded-xl text-red-500 active:bg-red-100"
-                                            >
-                                                <Icons.Trash className="w-4 h-4" />
-                                            </button>
-                                        </div>
                                     </div>
 
                                     <div className="h-px bg-slate-200" />
@@ -1089,22 +922,17 @@ export const BottleEditor: React.FC<BottleEditorProps> = ({ onAddToCart, onBack,
                                     {/* Estilo */}
                                     <div className="flex gap-2">
                                         <button onClick={() => updateLayer(selectedLayer.id, { underline: !selectedLayer.underline })}
-                                            className={`flex-1 py-2.5 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 ${selectedLayer.underline ? 'bg-rose-50 border-rose-300 text-rose-500' : 'bg-white border-slate-200 text-slate-500'}`}
-                                            title="Sublinhado">
-                                            <Icons.Underline className="w-3.5 h-3.5" />
-                                            Sub
-                                        </button>
+                                            className={`flex-1 py-2.5 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1 ${selectedLayer.underline ? 'bg-rose-50 border-rose-300 text-rose-500' : 'bg-white border-slate-200 text-slate-500'}`}
+                                            title="Sublinhado"><Icons.Underline className="w-3.5 h-3.5" /> U</button>
                                         <button onClick={() => updateLayer(selectedLayer.id, { italic: !selectedLayer.italic })}
-                                            className={`flex-1 py-2.5 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 ${selectedLayer.italic ? 'bg-rose-50 border-rose-300 text-rose-500' : 'bg-white border-slate-200 text-slate-500'}`}
-                                            title="Itálico">
-                                            <Icons.Italic className="w-3.5 h-3.5" />
-                                            Ita
-                                        </button>
+                                            className={`flex-1 py-2.5 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1 ${selectedLayer.italic ? 'bg-rose-50 border-rose-300 text-rose-500' : 'bg-white border-slate-200 text-slate-500'}`}
+                                            title="Itálico"><Icons.Italic className="w-3.5 h-3.5" /> I</button>
                                         <button onClick={() => updateLayer(selectedLayer.id, { stroke: !selectedLayer.stroke })}
-                                            className={`flex-1 py-2.5 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 ${selectedLayer.stroke ? 'bg-rose-50 border-rose-300 text-rose-500' : 'bg-white border-slate-200 text-slate-500'}`}
-                                            title="Contorno">
-                                            <Icons.Bold className="w-3.5 h-3.5" />
-                                            Brd
+                                            className={`flex-1 py-2.5 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1 ${selectedLayer.stroke ? 'bg-rose-50 border-rose-300 text-rose-500' : 'bg-white border-slate-200 text-slate-500'}`}
+                                            title="Contorno"><Icons.Bold className="w-3.5 h-3.5" /> B</button>
+                                        <button title="Remover camada" onClick={() => { deleteLayer(selectedLayer.id); handleSelectLayer(null); }}
+                                            className="py-2.5 px-3 rounded-xl bg-red-50 border border-red-200 text-red-500 hover:bg-red-100 transition-colors">
+                                            <Icons.Trash className="w-4 h-4" />
                                         </button>
                                     </div>
 
@@ -1167,14 +995,12 @@ export const BottleEditor: React.FC<BottleEditorProps> = ({ onAddToCart, onBack,
                 );
             })()}
 
-
-
             {/* Main Area — DESKTOP ONLY (hidden on mobile) */}
             <main className="flex-1 hidden lg:grid lg:grid-cols-12 lg:gap-4 lg:p-4 overflow-hidden relative">
 
 
-                {/* LEFT Sidebar — Images & Assets (Desktop Only) */}
-                <aside className="lg:col-span-2 editor-sidebar rounded-[8px] p-4 flex flex-col lg:h-full overflow-hidden relative z-20 hidden lg:flex">
+                {/* LEFT Sidebar — Images & Assets */}
+                <aside className={`lg:col-span-2 editor-sidebar rounded-[8px] p-4 flex-col lg:h-full overflow-hidden relative z-20 ${activeMobileTab === 'stamps' ? 'flex absolute inset-x-3 top-3 bottom-19 lg:static' : 'hidden lg:flex'}`}>
                     <div className="flex items-center gap-2.5 mb-5 shrink-0">
                         <div className="w-6 h-6 rounded-[6px] bg-linear-to-br from-indigo-500 to-blue-600 flex items-center justify-center text-white shadow">
                             <Icons.Layers className="w-3 h-3" />
@@ -1189,15 +1015,44 @@ export const BottleEditor: React.FC<BottleEditorProps> = ({ onAddToCart, onBack,
                             isBusy={isBusy} aiPrompt={aiPrompt} setAiPrompt={setAiPrompt} isAiLoading={isAiLoading}
                             handleAiGenerate={handleAiGenerate} handleAiBackgroundRemoval={handleAiBackgroundRemoval} handleUpload={handleUpload}
                             hideAddSection={false}
-                            isAdmin={isAdmin} onRecordDefault={handleRecordDefault}
                         />
                     </div>
-
+                    <button className="lg:hidden mt-3 shrink-0 w-full py-2.5 bg-slate-100 rounded-xl font-bold text-slate-600 border border-slate-200 text-sm" onClick={() => setActiveMobileTab(null)}>Fechar</button>
                 </aside>
 
                 {/* CENTER — Preview + Floating Property Panels */}
                 <section className="flex-1 min-h-0 w-full lg:col-span-8 flex flex-col lg:items-center lg:justify-center relative">
 
+                    {/* Admin Monitor */}
+                    {isAdmin && showCalibration && selectedLayerId && layers.find(l => l.id === selectedLayerId) && (
+                        <div className="absolute top-4 right-4 bg-[#0F172A]/95 backdrop-blur-md border border-white/10 p-4 rounded-xl shadow-xl z-50 text-xs w-44 font-mono">
+                            <h3 className="font-bold text-slate-200 mb-2 border-b border-white/10 pb-2">Monitor</h3>
+                            {(() => {
+                                const al = layers.find(l => l.id === selectedLayerId)!;
+                                return (
+                                    <>
+                                        <div className="space-y-1 text-slate-400 mb-3">
+                                            <div className="flex justify-between"><span>X:</span><span className="text-slate-200">{al.x.toFixed(1)}%</span></div>
+                                            <div className="flex justify-between"><span>Y:</span><span className="text-slate-200">{al.y.toFixed(1)}%</span></div>
+                                            <div className="flex justify-between"><span>Size:</span><span className="text-slate-200">{al.size.toFixed(0)}</span></div>
+                                            {al.rotation !== undefined && <div className="flex justify-between"><span>Rot:</span><span className="text-slate-200">{al.rotation.toFixed(0)}°</span></div>}
+                                        </div>
+                                        <button onClick={() => {
+                                            setDefaultIconPosition({ x: al.x, y: al.y });
+                                            localStorage.setItem('mimuus_default_position_icon', JSON.stringify({ x: al.x, y: al.y }));
+                                            setDefaultIconSize(al.size);
+                                            localStorage.setItem('mimuus_default_size_icon', al.size.toString());
+                                            setDefaultIconRotation(al.rotation || 0);
+                                            localStorage.setItem('mimuus_default_rotation_icon', (al.rotation || 0).toString());
+                                            toast.success("Padrão atualizado!");
+                                        }} className="w-full bg-white/10 text-white rounded-lg py-1.5 font-bold hover:bg-white/20 transition-colors text-[10px]">
+                                            Gravar Posição
+                                        </button>
+                                    </>
+                                );
+                            })()}
+                        </div>
+                    )}
 
                     {/* Floating IMAGE/ICON properties panel — LEFT of preview (desktop only) */}
                     <div className="hidden lg:block">
@@ -1288,37 +1143,10 @@ export const BottleEditor: React.FC<BottleEditorProps> = ({ onAddToCart, onBack,
                                         {selectedLayer.isBgClean ? '✨ Fundo Removido' : '🪄 Remover Fundo'}
                                     </button>
                                 )}
-                                
-                                {/* Mobile-only extra actions (from HUD) */}
-                                <div className="grid grid-cols-2 gap-2 lg:hidden">
-                                    <button onClick={() => duplicateLayer(selectedLayer.id)}
-                                        className="py-2 px-3 rounded-[8px] bg-slate-50 border border-slate-200 hover:bg-slate-100 text-slate-600 text-xs font-bold transition-colors flex items-center justify-center gap-1.5">
-                                        <Icons.Copy className="w-3.5 h-3.5" /> Duplicar
-                                    </button>
-                                    <button onClick={() => updateLayer(selectedLayer.id, { isMirrored: !selectedLayer.isMirrored })}
-                                        className="py-2 px-3 rounded-[8px] bg-slate-50 border border-slate-200 hover:bg-slate-100 text-slate-600 text-xs font-bold transition-colors flex items-center justify-center gap-1.5">
-                                        <Icons.RotateCw className="w-3.5 h-3.5" /> {selectedLayer.isMirrored ? 'Normal' : 'Espelhar'}
-                                    </button>
-                                    <button onClick={() => moveLayerUp(selectedLayer.id)}
-                                        className="py-2 px-3 rounded-[8px] bg-slate-50 border border-slate-200 hover:bg-slate-100 text-slate-600 text-xs font-bold transition-colors flex items-center justify-center gap-1.5">
-                                        <Icons.ChevronUp className="w-3.5 h-3.5" /> Trazer para frente
-                                    </button>
-                                    <button onClick={() => moveLayerDown(selectedLayer.id)}
-                                        className="py-2 px-3 rounded-[8px] bg-slate-50 border border-slate-200 hover:bg-slate-100 text-slate-600 text-xs font-bold transition-colors flex items-center justify-center gap-1.5">
-                                        <Icons.ChevronDown className="w-3.5 h-3.5" /> Enviar para trás
-                                    </button>
-                                </div>
-
                                 <button onClick={() => updateLayer(selectedLayer.id, { isMirrored: !selectedLayer.isMirrored })}
-                                    className="hidden lg:block w-full py-2 px-3 rounded-[8px] bg-slate-50 border border-slate-200 hover:bg-slate-100 text-slate-600 text-xs font-bold transition-colors">
+                                    className="w-full py-2 px-3 rounded-[8px] bg-slate-50 border border-slate-200 hover:bg-slate-100 text-slate-600 text-xs font-bold transition-colors">
                                     Espelhar
                                 </button>
-                                {isAdmin && (
-                                    <button onClick={() => handleRecordDefault(selectedLayer)}
-                                        className="w-full py-2 px-3 rounded-[8px] bg-blue-50 border border-blue-200 hover:bg-blue-100 text-blue-600 text-[10px] font-black uppercase tracking-widest transition-all">
-                                        Gravar como Padrão
-                                    </button>
-                                )}
                                 <button onClick={() => { deleteLayer(selectedLayer.id); handleSelectLayer(null); }}
                                     className="w-full py-2 text-red-500 text-xs font-bold hover:bg-red-50 rounded-[8px] transition-colors">
                                     Excluir Camada
@@ -1423,29 +1251,6 @@ export const BottleEditor: React.FC<BottleEditorProps> = ({ onAddToCart, onBack,
                                 </div>
                             </div>
 
-                            {/* Actions — Mobile extra */}
-                            <div className="grid grid-cols-2 gap-2 lg:hidden">
-                                <button onClick={() => duplicateLayer(selectedLayer.id)}
-                                    className="py-2 px-3 rounded-[8px] bg-slate-50 border border-slate-200 hover:bg-slate-100 text-slate-600 text-xs font-bold transition-colors flex items-center justify-center gap-1.5">
-                                    <Icons.Copy className="w-3.5 h-3.5" /> Duplicar
-                                </button>
-                                <button onClick={() => moveLayerUp(selectedLayer.id)}
-                                    className="py-2 px-3 rounded-[8px] bg-slate-50 border border-slate-200 hover:bg-slate-100 text-slate-600 text-xs font-bold transition-colors flex items-center justify-center gap-1.5">
-                                    <Icons.ChevronUp className="w-3.5 h-3.5" /> Trazer para frente
-                                </button>
-                                <button onClick={() => moveLayerDown(selectedLayer.id)}
-                                    className="py-2 px-3 rounded-[8px] bg-slate-50 border border-slate-200 hover:bg-slate-100 text-slate-600 text-xs font-bold transition-colors flex items-center justify-center gap-1.5">
-                                    <Icons.ChevronDown className="w-3.5 h-3.5" /> Enviar para trás
-                                </button>
-                            </div>
-
-                            {isAdmin && (
-                                <button onClick={() => handleRecordDefault(selectedLayer)}
-                                    className="w-full py-2 px-3 rounded-[8px] bg-blue-50 border border-blue-200 hover:bg-blue-100 text-blue-600 text-[10px] font-black uppercase tracking-widest transition-all">
-                                    Gravar como Padrão
-                                </button>
-                            )}
-
                             {/* Fonte — mini chips */}
                             <div className="flex flex-col gap-2">
                                 <span className="section-label-dark mb-0">Fonte</span>
@@ -1484,10 +1289,6 @@ export const BottleEditor: React.FC<BottleEditorProps> = ({ onAddToCart, onBack,
                                     sku={sku} lidColor={lidColor} layers={layers} selectedLayerId={selectedLayerId} isBusy={isBusy}
                                     onUndo={() => {}} onRedo={() => {}} onReset={() => {}}
                                     canUndo={canUndo} canRedo={canRedo} onSelectLayer={handleSelectLayer} onUpdateLayer={updateLayer}
-                                    onDuplicateLayer={duplicateLayer}
-                                    onMoveLayerUp={moveLayerUp}
-                                    onMoveLayerDown={moveLayerDown}
-                                    onDeleteLayer={deleteLayer}
                                     draftText={draftText} draftTextPosition={defaultTextPosition}
                                 />
                             </div>
@@ -1505,8 +1306,8 @@ export const BottleEditor: React.FC<BottleEditorProps> = ({ onAddToCart, onBack,
                 </section>
 
 
-                {/* RIGHT Sidebar — Text & Icons (Desktop Only) */}
-                <aside className="lg:col-span-12 xl:col-span-2 editor-sidebar rounded-[8px] p-4 flex flex-col lg:h-full overflow-hidden relative z-20 hidden lg:flex">
+                {/* RIGHT Sidebar — Text & Icons */}
+                <aside className={`lg:col-span-2 editor-sidebar rounded-[8px] p-4 flex-col lg:h-full overflow-hidden relative z-20 ${activeMobileTab === 'text' ? 'flex absolute inset-x-3 top-3 bottom-19 lg:static' : 'hidden lg:flex'}`}>
                     <div className="flex items-center gap-2.5 mb-5 shrink-0">
                         <div className="w-6 h-6 rounded-[6px] bg-linear-to-br from-rose-400 to-orange-400 flex items-center justify-center text-white shadow">
                             <Icons.Type className="w-3 h-3" />
@@ -1519,10 +1320,9 @@ export const BottleEditor: React.FC<BottleEditorProps> = ({ onAddToCart, onBack,
                             onUpdateLayer={updateLayer} onAddText={handleAddText} onDeleteLayer={deleteLayer}
                             activeIconCat={activeIconCat} setActiveIconCat={setActiveIconCat}
                             ICON_CATEGORIES={ICON_CATEGORIES} onAddIcon={handleAddIcon} onNewTextChange={setDraftText}
-                            isAdmin={isAdmin} onRecordDefault={handleRecordDefault}
                         />
                     </div>
-
+                    <button className="lg:hidden mt-3 shrink-0 w-full py-2.5 bg-slate-100 rounded-[8px] font-bold text-slate-600 border border-slate-200 text-sm" onClick={() => setActiveMobileTab(null)}>Fechar</button>
                 </aside>
 
             </main>

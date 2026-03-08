@@ -38,11 +38,9 @@ export function generateAbandonedCartEmail({
           <!-- Header -->
           <tr>
             <td style="background: linear-gradient(135deg, #FF1B8D 0%, #00D4FF 100%); padding: 40px; text-align: center;">
-              <a href="https://mimuus.com" style="text-decoration: none;">
-                <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: bold;">
-                  mi<span style="color: #FF1B8D;">mu</span>us.
-                </h1>
-              </a>
+              <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: bold;">
+                mi<span style="color: #FF1B8D;">mu</span>us.
+              </h1>
             </td>
           </tr>
 

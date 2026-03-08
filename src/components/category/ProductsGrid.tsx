@@ -35,7 +35,7 @@ export function ProductsGrid({ products }: ProductsGridProps) {
         variants={container}
         initial="hidden"
         animate="show"
-        className="grid gap-3 md:gap-8 grid-cols-2 lg:grid-cols-2 xl:grid-cols-3"
+        className="grid gap-8 grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3"
       >
         <AnimatePresence mode="popLayout">
           {products.map((p) => (

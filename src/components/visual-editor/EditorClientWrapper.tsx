@@ -17,7 +17,6 @@ const BottleEditor = dynamic(
   }
 )
 
-import { useRouter } from "next/navigation"
 import { EditorErrorBoundary } from "./EditorErrorBoundary"
 
 interface EditorClientWrapperProps {
@@ -26,15 +25,9 @@ interface EditorClientWrapperProps {
 }
 
 export function EditorClientWrapper({ initialSku, productId }: EditorClientWrapperProps) {
-  const router = useRouter()
-
   return (
     <EditorErrorBoundary>
-      <BottleEditor 
-        initialSku={initialSku} 
-        productId={productId} 
-        onBack={() => router.back()} 
-      />
+      <BottleEditor initialSku={initialSku} productId={productId} />
     </EditorErrorBoundary>
   )
 }

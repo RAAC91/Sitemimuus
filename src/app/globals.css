@@ -183,18 +183,6 @@
     @apply absolute rounded-full blur-[80px] opacity-30 pointer-events-none;
     animation: aurora 20s linear infinite;
   }
-
-  /* Safe Area Utilities */
-  .pb-safe {
-    padding-bottom: env(safe-area-inset-bottom);
-  }
-  .pt-safe {
-    padding-top: env(safe-area-inset-top);
-  }
-  .px-safe {
-    padding-left: env(safe-area-inset-left);
-    padding-right: env(safe-area-inset-right);
-  }
 }
 
 /* ════════════════════════════════════════════
@@ -550,9 +538,7 @@
 .editor-float-panel {
   background: #ffffff;
   border: 1px solid #e2e8f0;
-  box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.1),
-    0 2px 8px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.10), 0 2px 8px rgba(0, 0, 0, 0.06);
   overflow-y: auto;
   max-height: 85vh;
 }

@@ -7,9 +7,9 @@ export default function Footer() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-12 mb-16">
           <div className="col-span-1 md:col-span-1">
-            <Link href="/" className="text-3xl font-black tracking-tight mb-6 block hover:scale-105 transition-transform w-fit">
+            <span className="text-3xl font-black tracking-tight mb-6 block">
               mi<span className="text-brand-pink">mu</span>us<span className="text-brand-cyan">.</span>
-            </Link>
+            </span>
             <p className="text-gray-400 text-sm leading-relaxed mb-6">
               Sua expressão, sua garrafa. Design vibrante e durabilidade para acompanhar cada momento do seu dia.
             </p>

@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter, usePathname } from "next/navigation";
-import { ShoppingCart, X, Search, User as UserIcon, LogOut, ShoppingBag } from "lucide-react";
+import { ShoppingCart, Menu, X, Search, User as UserIcon, LogOut, ShoppingBag, Palette, Instagram, Send } from "lucide-react";
 import { useCartStore } from "@/store/cartStore";
 import { useAuth } from "@/providers/AuthProvider";
 import { supabase } from "@/lib/supabase/client";
@@ -21,10 +21,22 @@ import {
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { ADMIN_EMAILS } from "@/lib/constants";
 
-
+const SOCIAL_LINKS = [
+  {
+    href: "https://www.instagram.com/mimuus_",
+    label: "Instagram",
+    icon: Instagram,
+  },
+  {
+    href: "https://t.me/mimuus",
+    label: "Telegram",
+    icon: Send,
+  },
+];
 
 export default function Header() {
   const [scrolled, setScrolled] = useState(false);
+  const [mobileMenu, setMobileMenu] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -92,11 +104,9 @@ export default function Header() {
       <div className="container mx-auto px-6 md:px-8">
         <div className="flex items-center justify-between h-16 md:h-18">
           {/* Logo */}
-          <div className="flex-1 md:flex-none flex justify-center md:justify-start">
-            <Link href="/" className="text-2xl font-black tracking-tight shrink-0 z-50 hover:scale-105 transition-transform">
-              mi<span className="text-brand-pink">mu</span>us<span className="text-brand-cyan">.</span>
-            </Link>
-          </div>
+          <Link href="/" className="text-2xl font-black tracking-tight shrink-0 z-50 hover:scale-105 transition-transform">
+            mi<span className="text-brand-pink">mu</span>us<span className="text-brand-cyan">.</span>
+          </Link>
 
           {/* Desktop Nav */}
           <nav className="hidden md:flex items-center space-x-8">
@@ -155,7 +165,7 @@ export default function Header() {
               />
             </form>
 
-            {/* Mobile Search Toggle - keeping it as it is useful */}
+            {/* Mobile Search Toggle */}
             <button
               className={`md:hidden hover:text-brand-pink transition-colors hover:scale-110 active:scale-95 ${
                 isDark ? "text-white" : "text-slate-900"
@@ -167,84 +177,95 @@ export default function Header() {
               <Search className="w-5 h-5" />
             </button>
 
-            {/* Auth - Hidden on mobile as it is in bottom bar */}
-            {!loading && (
-              <div className="hidden md:block">
-                {user ? (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger className="outline-none">
-                      <div className="hover:ring-2 hover:ring-brand-pink rounded-full transition-all duration-300 cursor-pointer p-0.5">
-                        {user.user_metadata?.avatar_url ? (
-                          <div className="relative w-8 h-8">
-                            <Image src={user.user_metadata.avatar_url} alt="User" fill className="rounded-full object-cover" />
-                          </div>
-                        ) : (
-                          <div className={`p-1.5 rounded-full ${isDark ? "bg-white/10 text-white" : "bg-black/5 text-slate-900"}`}>
-                            <UserIcon className="w-5 h-5" />
-                          </div>
-                        )}
+            {/* Auth */}
+            {loading ? (
+              <div className="w-5 h-5 rounded-full border-2 border-brand-pink border-t-transparent animate-spin" />
+            ) : user ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger className="outline-none">
+                  <div className="hover:ring-2 hover:ring-brand-pink rounded-full transition-all duration-300 cursor-pointer p-0.5">
+                    {user.user_metadata?.avatar_url ? (
+                      <div className="relative w-8 h-8">
+                        <Image src={user.user_metadata.avatar_url} alt="User" fill className="rounded-full object-cover" />
                       </div>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-56 bg-white/90 backdrop-blur-xl border-white/20 shadow-xl rounded-2xl p-2 z-100">
-                      <DropdownMenuLabel className="font-normal">
-                        <div className="flex flex-col space-y-1">
-                          <p className="text-sm font-medium leading-none text-slate-900">Minha Conta</p>
-                          <p className="text-xs leading-none text-slate-500 truncate">{user.email}</p>
-                        </div>
-                      </DropdownMenuLabel>
-                      <DropdownMenuSeparator className="bg-slate-100" />
-                      {/* ... dropdown items (keeping them for desktop) ... */}
-                      <DropdownMenuItem className="cursor-pointer rounded-lg focus:bg-brand-pink/10 focus:text-brand-pink" asChild>
-                        <Link href="/conta" className="flex items-center w-full">
-                          <UserIcon className="mr-2 h-4 w-4" />
-                          <span>Perfil</span>
-                        </Link>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem className="cursor-pointer rounded-lg focus:bg-brand-pink/10 focus:text-brand-pink" asChild>
-                        <Link href="/conta/pedidos" className="flex items-center w-full">
-                          <ShoppingBag className="mr-2 h-4 w-4" />
-                          <span>Meus Pedidos</span>
-                        </Link>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        className="cursor-pointer rounded-lg text-red-500 focus:bg-red-50 focus:text-red-600"
-                        onClick={async () => {
-                          await supabase.auth.signOut();
-                          router.push("/");
-                          router.refresh();
-                        }}
-                      >
-                        <LogOut className="mr-2 h-4 w-4" />
-                        <span>Sair</span>
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                ) : (
-                  <Link
-                    href="/login"
-                    className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all duration-300 hover:scale-105 active:scale-95 group ${
-                      scrolled
-                        ? isDark
-                          ? "bg-white/10 hover:bg-white/20 text-white"
-                          : "bg-slate-900 hover:bg-slate-800 text-white shadow-lg shadow-brand-pink/20"
-                        : isDark
-                        ? "bg-white/10 hover:bg-white/20 text-white backdrop-blur-sm"
-                        : "bg-white hover:bg-slate-50 text-slate-900 shadow-xl shadow-black/5"
-                    }`}
-                  >
-                    <div className={`p-1 rounded-full ${scrolled && !isDark ? "bg-white/10" : "bg-white/20"} group-hover:bg-brand-pink group-hover:text-white transition-colors`}>
-                      <UserIcon className="w-4 h-4" />
+                    ) : (
+                      <div className={`p-1.5 rounded-full ${isDark ? "bg-white/10 text-white" : "bg-black/5 text-slate-900"}`}>
+                        <UserIcon className="w-5 h-5" />
+                      </div>
+                    )}
+                  </div>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56 bg-white/90 backdrop-blur-xl border-white/20 shadow-xl rounded-2xl p-2 z-100">
+                  <DropdownMenuLabel className="font-normal">
+                    <div className="flex flex-col space-y-1">
+                      <p className="text-sm font-medium leading-none text-slate-900">Minha Conta</p>
+                      <p className="text-xs leading-none text-slate-500 truncate">{user.email}</p>
                     </div>
-                    <span className="text-xs font-bold tracking-wider uppercase pr-1">Entrar</span>
-                  </Link>
-                )}
-              </div>
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator className="bg-slate-100" />
+                  {isAdmin && (
+                    <DropdownMenuItem className="cursor-pointer rounded-lg focus:bg-brand-pink/10 focus:text-brand-pink" asChild>
+                      <Link href="/x7z-4dm1n-P4n3l" className="flex items-center w-full font-bold text-brand-pink">
+                        <span>👑 Painel Admin</span>
+                      </Link>
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuItem className="cursor-pointer rounded-lg focus:bg-brand-pink/10 focus:text-brand-pink" asChild>
+                    <Link href="/conta" className="flex items-center w-full">
+                      <UserIcon className="mr-2 h-4 w-4" />
+                      <span>Perfil</span>
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem className="cursor-pointer rounded-lg focus:bg-brand-pink/10 focus:text-brand-pink" asChild>
+                    <Link href="/conta/pedidos" className="flex items-center w-full">
+                      <ShoppingBag className="mr-2 h-4 w-4" />
+                      <span>Meus Pedidos</span>
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem className="cursor-pointer rounded-lg focus:bg-brand-pink/10 focus:text-brand-pink" asChild>
+                    <Link href="/editor" className="flex items-center w-full">
+                      <Palette className="mr-2 h-4 w-4" />
+                      <span>Criar Design</span>
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator className="bg-slate-100" />
+                  <DropdownMenuItem
+                    className="cursor-pointer rounded-lg text-red-500 focus:bg-red-50 focus:text-red-600"
+                    onClick={async () => {
+                      await supabase.auth.signOut();
+                      router.push("/");
+                      router.refresh();
+                    }}
+                  >
+                    <LogOut className="mr-2 h-4 w-4" />
+                    <span>Sair</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <Link
+                href="/login"
+                className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all duration-300 hover:scale-105 active:scale-95 group ${
+                  scrolled
+                    ? isDark
+                      ? "bg-white/10 hover:bg-white/20 text-white"
+                      : "bg-slate-900 hover:bg-slate-800 text-white shadow-lg shadow-brand-pink/20"
+                    : isDark
+                    ? "bg-white/10 hover:bg-white/20 text-white backdrop-blur-sm"
+                    : "bg-white hover:bg-slate-50 text-slate-900 shadow-xl shadow-black/5"
+                }`}
+              >
+                <div className={`p-1 rounded-full ${scrolled && !isDark ? "bg-white/10" : "bg-white/20"} group-hover:bg-brand-pink group-hover:text-white transition-colors`}>
+                  <UserIcon className="w-4 h-4" />
+                </div>
+                <span className="text-xs font-bold tracking-wider uppercase pr-1">Entrar</span>
+              </Link>
             )}
 
-            {/* Cart - Hidden on mobile as it is in bottom bar */}
+            {/* Cart */}
             <button
               onClick={openCart}
-              className={`hidden md:block relative group hover:text-brand-pink transition-colors hover:scale-110 active:scale-95 ${
+              className={`relative group hover:text-brand-pink transition-colors hover:scale-110 active:scale-95 ${
                 isDark ? "text-white" : "text-slate-900"
               }`}
               aria-label="Carrinho"
@@ -263,7 +284,14 @@ export default function Header() {
               <ThemeToggle />
             </div>
 
-            {/* Mobile Menu Button - Hidden as we have MobileNavbar */}
+            {/* Mobile Menu Button */}
+            <button
+              className={`md:hidden hover:text-brand-pink transition-colors ${isDark ? "text-white" : "text-slate-900"}`}
+              onClick={() => setMobileMenu(true)}
+              aria-label="Menu"
+            >
+              <Menu className="w-6 h-6" />
+            </button>
           </div>
         </div>
       </div>
@@ -301,7 +329,76 @@ export default function Header() {
         )}
       </AnimatePresence>
 
-      <div className={`h-[1px] w-full ${isDark ? "bg-white/5" : "bg-black/5"}`} />
+      {/* Mobile Menu */}
+      <AnimatePresence>
+        {mobileMenu && (
+          <motion.div
+            initial={{ opacity: 0, x: "100%" }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: "100%" }}
+            transition={{ type: "spring", damping: 25, stiffness: 200 }}
+            className={`fixed inset-0 z-100 p-8 flex flex-col ${isDark ? "bg-slate-950 text-white" : "bg-white text-slate-900"}`}
+          >
+            <div className="flex justify-between items-center mb-16">
+              <span className="text-3xl font-black tracking-tight">
+                mi<span className="text-brand-pink">mu</span>us<span className="text-brand-cyan">.</span>
+              </span>
+              <button
+                onClick={() => setMobileMenu(false)}
+                className="p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+              >
+                <X className="w-8 h-8" />
+              </button>
+            </div>
+
+            <nav className="flex flex-col space-y-6">
+              {navItems.map((item, i) => {
+                const isActive = item.path === "/" ? pathname === "/" : pathname.startsWith(item.path);
+                const isPersonalize = item.name === "PERSONALIZE";
+                return (
+                  <Link
+                    key={item.path}
+                    href={item.path}
+                    onClick={() => setMobileMenu(false)}
+                    className={
+                      isPersonalize
+                        ? "text-3xl font-black tracking-tight transition-all text-transparent bg-clip-text bg-gradient-to-r from-brand-pink to-[#ff7eb3] flex items-center gap-3 w-fit animate-[pulse_3s_ease-in-out_infinite]"
+                        : `text-4xl font-black tracking-tight transition-colors ${
+                            isActive ? "text-brand-pink" : "hover:text-brand-pink"
+                          }`
+                    }
+                  >
+                    <motion.div initial={{ x: 50, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ delay: i * 0.1 }} className="flex items-center gap-3">
+                      {isPersonalize && <span className="text-2xl grayscale filter drop-shadow-sm">🎨</span>}
+                      {item.name}
+                    </motion.div>
+                  </Link>
+                );
+              })}
+            </nav>
+
+            <div className="mt-auto pt-8 border-t border-black/10 dark:border-white/10">
+              <p className="text-sm font-medium opacity-50 uppercase tracking-widest mb-4">Siga-nos</p>
+              <div className="flex gap-4">
+                {SOCIAL_LINKS.map(({ href, label, icon: Icon }) => (
+                  <a
+                    key={label}
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={label}
+                    className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors hover:bg-brand-pink hover:text-white ${
+                      isDark ? "bg-white/10 text-white" : "bg-black/5 text-slate-900"
+                    }`}
+                  >
+                    <Icon className="w-5 h-5" />
+                  </a>
+                ))}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </header>
   );
 }

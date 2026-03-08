@@ -35,8 +35,8 @@ export async function fetchIconsFromFolder(folderPath: string): Promise<string[]
 
     // Tenta carregar ícones numerados sequencialmente
     for (let i = 1; i <= MAX_ICONS_PER_FOLDER; i++) {
-        // Adiciona parâmetros de transformação otimizados
-        const url = `${IMAGEKIT_URL_ENDPOINT}/${folderPath}/${i}.png?tr=w-1024,q-80`;
+        // Adiciona parâmetros de transformação para alta qualidade
+        const url = `${IMAGEKIT_URL_ENDPOINT}/${folderPath}/${i}.png?tr=w-3000,q-100`;
         //                                                              ↑ largura  ↑ qualidade máxima
 
         // Verifica se o ícone existe

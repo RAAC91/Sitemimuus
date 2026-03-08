@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion"
@@ -92,7 +92,7 @@ export function ProductCard({ product }: ProductCardProps) {
     <Link href={`/produtos/${product.id}`} className="block h-full"> 
     <motion.article
       whileHover={{ y: -8 }}
-      className="relative group p-3 md:p-4 transition-all duration-500 cursor-pointer overflow-visible h-full rounded-[1.5rem] md:rounded-[2rem] bg-white/40 backdrop-blur-md border border-white/50 hover:shadow-xl hover:shadow-brand-pink/5"
+      className="relative group p-4 transition-all duration-500 cursor-pointer overflow-visible h-full rounded-[2rem] bg-white/40 backdrop-blur-md border border-white/50 hover:shadow-xl hover:shadow-brand-pink/5"
     >
       {/* Image Container with Soft Pastel Background */}
       <div className="mb-4 relative aspect-[4/5] flex items-center justify-center p-6 rounded-[2rem] bg-white/50 group-hover:bg-white/80 transition-colors duration-500 overflow-hidden border border-white/60">
@@ -100,7 +100,7 @@ export function ProductCard({ product }: ProductCardProps) {
         {/* Gallery Progress Indicators */}
         {hasMultipleImages && (
           <div className="absolute top-4 inset-x-6 h-1 flex gap-1 z-20">
-            {galleryImages.map((_, idx) => (
+            {galleryImages.map((_: any, idx: number) => (
               <div 
                 key={idx}
                 className={`h-full flex-1 rounded-full bg-gray-200 overflow-hidden transition-all duration-300`}
@@ -167,7 +167,7 @@ export function ProductCard({ product }: ProductCardProps) {
         </div>
 
         {/* Quick Actions - Floating pills */}
-        <div className="absolute bottom-4 inset-x-4 translate-y-0 opacity-100 md:translate-y-4 md:opacity-0 md:group-hover:translate-y-0 md:group-hover:opacity-100 transition-all duration-500 z-30 flex gap-2">
+        <div className="absolute bottom-4 inset-x-4 translate-y-4 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-500 z-30 flex gap-2">
              <button 
                 onClick={handleShare}
                 className="w-10 py-3 bg-white text-brand-black rounded-full hover:bg-gray-50 transition-all shadow-md hover:shadow-lg border border-gray-100 flex items-center justify-center"

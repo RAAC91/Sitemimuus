@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
@@ -54,11 +53,9 @@ export default function ResetPasswordPage() {
         }`}
       >
         <div className="mb-8 text-center">
-          <Link href="/" className="inline-block hover:scale-105 transition-transform">
-            <h1 className="text-3xl font-black mb-2">
-              mi<span className="text-brand-pink">mu</span>us<span className="text-brand-cyan">.</span>
-            </h1>
-          </Link>
+          <h1 className="text-3xl font-black mb-2">
+            mi<span className="text-brand-pink">mu</span>us<span className="text-brand-cyan">.</span>
+          </h1>
           <h2 className="text-xl font-bold mt-6 mb-1">Nova Senha</h2>
           <p className={`text-sm ${isDark ? "text-gray-400" : "text-gray-500"}`}>
             Escolha uma senha forte para sua conta.
