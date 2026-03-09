@@ -74,7 +74,7 @@ export const BottleEditor: React.FC<BottleEditorProps> = ({ onAddToCart, onBack,
     const [showShowcase, setShowShowcase] = useState(false);
     const [showShareModal, setShowShareModal] = useState(false);
     const [generatedPreview] = useState<string | null>(null);
-    const [activeMobileTab, setActiveMobileTab] = useState<'color' | 'material' | 'stamps' | 'text' | 'summary' | null>('color');
+    const [activeMobileTab, setActiveMobileTab] = useState<'color' | 'material' | 'stamps' | 'text' | 'summary' | 'icons' | null>('color');
     
     // POSITION CALIBRATION - Separate positions for each layer type
     const isMobileViewport = () =>
