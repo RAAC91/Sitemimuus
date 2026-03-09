@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { ADMIN_EMAILS } from "@/lib/constants";
+import MobileHeader from "./MobileHeader";
 
 const SOCIAL_LINKS = [
   {
@@ -36,7 +37,6 @@ const SOCIAL_LINKS = [
 
 export default function Header() {
   const [scrolled, setScrolled] = useState(false);
-  const [mobileMenu, setMobileMenu] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -98,18 +98,19 @@ export default function Header() {
     : "bg-white/40 backdrop-blur-sm border border-black/5 shadow-sm";
 
   return (
-    <header
-      className={`fixed top-4 left-4 right-4 z-50 transition-all duration-500 mx-auto max-w-7xl rounded-2xl md:rounded-full ${headerClass}`}
-    >
-      <div className="container mx-auto px-6 md:px-8">
-        <div className="flex items-center justify-between h-16 md:h-18">
+    <>
+      <header
+        className={`hidden lg:block fixed top-4 left-4 right-4 z-50 transition-all duration-500 mx-auto max-w-7xl rounded-full ${headerClass}`}
+      >
+        <div className="container mx-auto px-6 md:px-8">
+          <div className="flex items-center justify-between h-16 md:h-18">
           {/* Logo */}
           <Link href="/" className="text-2xl font-black tracking-tight shrink-0 z-50 hover:scale-105 transition-transform">
             mi<span className="text-brand-pink">mu</span>us<span className="text-brand-cyan">.</span>
           </Link>
 
           {/* Desktop Nav */}
-          <nav className="hidden md:flex items-center space-x-8">
+          <nav className="flex items-center space-x-8">
             {navItems.map((item) => {
               const isActive = item.path === "/" ? pathname === "/" : pathname.startsWith(item.path);
               const isPersonalize = item.name === "PERSONALIZE";
@@ -146,7 +147,7 @@ export default function Header() {
           {/* Actions */}
           <div className="flex items-center space-x-4 md:space-x-5">
             {/* Desktop Search Bar */}
-            <form onSubmit={handleSearch} className={`hidden md:flex items-center rounded-full px-3 py-1.5 border transition-all duration-300 group ${
+            <form onSubmit={handleSearch} className={`flex items-center rounded-full px-3 py-1.5 border transition-all duration-300 group ${
               isDark
                 ? "bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20"
                 : "bg-white/50 border-black/5 hover:bg-white hover:border-black/10 hover:shadow-sm"
@@ -164,18 +165,6 @@ export default function Header() {
                 }`}
               />
             </form>
-
-            {/* Mobile Search Toggle */}
-            <button
-              className={`md:hidden hover:text-brand-pink transition-colors hover:scale-110 active:scale-95 ${
-                isDark ? "text-white" : "text-slate-900"
-              }`}
-              onClick={() => setSearchOpen((prev) => !prev)}
-              aria-label="Abrir busca"
-              title="Abrir busca"
-            >
-              <Search className="w-5 h-5" />
-            </button>
 
             {/* Auth */}
             {loading ? (
@@ -283,137 +272,12 @@ export default function Header() {
             <div className="border-l pl-4 border-gray-200 dark:border-white/10">
               <ThemeToggle />
             </div>
-
-            {/* Mobile Menu Button */}
-            <button
-              className={`md:hidden hover:text-brand-pink transition-colors ${isDark ? "text-white" : "text-slate-900"}`}
-              onClick={() => setMobileMenu(true)}
-              aria-label="Menu"
-            >
-              <Menu className="w-6 h-6" />
-            </button>
           </div>
         </div>
       </div>
-
-      {/* Mobile Search Bar (drops below header) */}
-      <AnimatePresence>
-        {searchOpen && (
-          <motion.form
-            onSubmit={handleSearch}
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            className={`overflow-hidden md:hidden border-t ${isDark ? "border-white/10" : "border-black/5"}`}
-          >
-            <div className="px-6 py-3 flex items-center gap-3">
-              <Search className={`w-4 h-4 shrink-0 ${isDark ? "text-gray-400" : "text-gray-500"}`} />
-              <input
-                ref={searchInputRef}
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Pesquisar produtos..."
-                className={`flex-1 bg-transparent border-none outline-none text-sm ${
-                  isDark ? "text-white placeholder:text-gray-500" : "text-slate-900 placeholder:text-gray-500"
-                }`}
-                autoFocus
-              />
-              {searchQuery && (
-                <button type="button" onClick={() => { setSearchQuery(""); setSearchOpen(false); }}>
-                  <X className="w-4 h-4" />
-                </button>
-              )}
-            </div>
-          </motion.form>
-        )}
-      </AnimatePresence>
-
-      {/* Mobile Menu Backdrop */}
-      <AnimatePresence>
-        {mobileMenu && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={() => setMobileMenu(false)}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[90] md:hidden"
-          />
-        )}
-      </AnimatePresence>
-
-      {/* Mobile Menu Drawer */}
-      <AnimatePresence>
-        {mobileMenu && (
-          <motion.div
-            initial={{ opacity: 1, x: "-100%" }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 1, x: "-100%" }}
-            transition={{ type: "spring", damping: 25, stiffness: 200 }}
-            className={`fixed inset-y-0 left-0 w-[85vw] max-w-sm z-[100] p-6 md:p-8 flex flex-col shadow-2xl md:hidden overflow-y-auto ${isDark ? "bg-slate-950 text-white" : "bg-white text-slate-900"}`}
-            style={{ WebkitOverflowScrolling: "touch", overscrollBehavior: "contain" }}
-          >
-            <div className="flex justify-between items-center mb-12">
-              <Link href="/" onClick={() => setMobileMenu(false)} className="text-3xl font-black tracking-tight shrink-0">
-                mi<span className="text-brand-pink">mu</span>us<span className="text-brand-cyan">.</span>
-              </Link>
-              <button
-                onClick={() => setMobileMenu(false)}
-                className="p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
-                aria-label="Fechar menu"
-              >
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-
-            <nav className="flex flex-col space-y-6">
-              {navItems.map((item, i) => {
-                const isActive = item.path === "/" ? pathname === "/" : pathname.startsWith(item.path);
-                const isPersonalize = item.name === "PERSONALIZE";
-                return (
-                  <Link
-                    key={item.path}
-                    href={item.path}
-                    onClick={() => setMobileMenu(false)}
-                    className={
-                      isPersonalize
-                        ? "text-2xl font-black tracking-tight transition-all text-transparent bg-clip-text bg-gradient-to-r from-brand-pink to-[#ff7eb3] flex items-center gap-3 w-fit animate-[pulse_3s_ease-in-out_infinite]"
-                        : `text-2xl font-black tracking-tight transition-colors ${
-                            isActive ? "text-brand-pink" : "hover:text-brand-pink"
-                          }`
-                    }
-                  >
-                    <motion.div initial={{ x: -20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ delay: i * 0.1 }} className="flex items-center gap-3">
-                      {isPersonalize && <span className="text-xl grayscale filter drop-shadow-sm">🎨</span>}
-                      {item.name}
-                    </motion.div>
-                  </Link>
-                );
-              })}
-            </nav>
-
-            <div className="mt-auto pt-8 border-t border-black/10 dark:border-white/10">
-              <p className="text-xs font-medium opacity-50 uppercase tracking-widest mb-4">Siga-nos</p>
-              <div className="flex gap-4">
-                {SOCIAL_LINKS.map(({ href, label, icon: Icon }) => (
-                  <a
-                    key={label}
-                    href={href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-label={label}
-                    className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors hover:bg-brand-pink hover:text-white ${
-                      isDark ? "bg-white/10 text-white" : "bg-black/5 text-slate-900"
-                    }`}
-                  >
-                    <Icon className="w-5 h-5" />
-                  </a>
-                ))}
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </header>
+      </header>
+      
+      <MobileHeader />
+    </>
   );
 }
