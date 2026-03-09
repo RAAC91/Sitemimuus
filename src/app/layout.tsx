@@ -11,6 +11,7 @@ import {
   Geologica,
 } from "next/font/google";
 import "./globals.css";
+import "@/styles/mobile.css";
 import { Toaster } from "@/components/ui/sonner"
 import { CartDrawer } from "@/components/cart/CartDrawer"
 import { AuthProvider } from "@/providers/AuthProvider"
@@ -20,6 +21,7 @@ import { GoogleAnalytics } from '@next/third-parties/google'
 import { SchemaOrg } from "@/components/seo/SchemaOrg"
 
 import { SiteBackground } from "@/components/layout/SiteBackground"
+import MobileBottomNav from "@/components/layout/MobileBottomNav"
 import { SpeedInsights } from "@vercel/speed-insights/next"
 
 // --- FONTS ---
@@ -139,6 +141,7 @@ export default function RootLayout({
               {children}
               <Toaster />
               <CartDrawer />
+              <MobileBottomNav />
             </AppThemeProvider>
           </AuthProvider>
         </PostHogProvider>

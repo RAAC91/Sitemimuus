@@ -148,9 +148,9 @@ export function ProductForm({ initialData }: ProductFormProps) {
       <form onSubmit={handleSubmit} className="lg:col-span-5 flex flex-col h-full bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden text-brand-black">
          <div className="p-6 border-b border-gray-100 flex items-center justify-between">
             <div className="flex items-center gap-3">
-                <Link href="/x7z-4dm1n-P4n3l/products" className="p-2 hover:bg-gray-50 rounded-lg transition">
+                <button type="button" onClick={() => router.push('/x7z-4dm1n-P4n3l/products')} className="p-2 hover:bg-gray-50 rounded-lg transition">
                     <ArrowLeft size={20} className="text-gray-400" />
-                </Link>
+                </button>
                 <div>
                     <h2 className="text-xl font-black">{isEditing ? "Editar Produto" : "Novo Produto"}</h2>
                     <p className="text-xs text-gray-500">Informações e catálogo.</p>

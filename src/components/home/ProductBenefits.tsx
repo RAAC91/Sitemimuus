@@ -57,11 +57,11 @@ export default function ProductBenefits() {
                />
                
                {/* Label indicator */}
-               <div className="absolute bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center">
-                  <div className="px-6 py-3 bg-zinc-900/90 backdrop-blur-md text-white rounded-full text-[10px] font-black uppercase tracking-widest relative z-10 flex items-center gap-2 shadow-2xl">
-                    <div className="w-2 h-2 rounded-full bg-brand-pink animate-pulse" />
-                    Borracha de Silicone Inclusa
-                  </div>
+               <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center w-full max-w-[80%]">
+                <div className="px-8 py-4 bg-zinc-900/90 backdrop-blur-md text-white rounded-full text-[10px] font-black uppercase tracking-widest relative z-10 flex items-center gap-2 shadow-2xl">
+                  <div className="w-2 h-2 rounded-full bg-brand-pink animate-pulse" />
+                  Design Exclusivo
+                </div>
                </div>
             </div>
           </motion.div>

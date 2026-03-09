@@ -140,6 +140,41 @@ export const BottlePreview: React.FC<BottlePreviewProps> = ({
         setDragStart(null);
     };
 
+    // ── Touch handlers for mobile drag ──────────────────────────────────
+    const handleLayerTouchStart = (e: React.TouchEvent, layerId: string) => {
+        e.stopPropagation();
+        const touch = e.touches[0];
+        onSelectLayer(layerId);
+        setDraggingLayerId(layerId);
+        setDragStart({ x: touch.clientX, y: touch.clientY });
+    };
+
+    const handleTouchMove = (e: React.TouchEvent) => {
+        if (!draggingLayerId || !dragStart || !bottleContainerRef.current) return;
+        const touch = e.touches[0];
+        const layer = layers.find(l => l.id === draggingLayerId);
+        if (!layer) return;
+
+        const rect = bottleContainerRef.current.getBoundingClientRect();
+        const deltaX = touch.clientX - dragStart.x;
+        const deltaY = touch.clientY - dragStart.y;
+
+        const percentX = (deltaX / rect.width) * 100;
+        const percentY = (deltaY / rect.height) * 100;
+
+        onUpdateLayer(draggingLayerId, {
+            x: Math.max(0, Math.min(100, layer.x + percentX)),
+            y: Math.max(0, layer.y + percentY)
+        });
+
+        setDragStart({ x: touch.clientX, y: touch.clientY });
+    };
+
+    const handleTouchEnd = () => {
+        setDraggingLayerId(null);
+        setDragStart(null);
+    };
+
 
 
     const handleTransformMove = (e: React.MouseEvent) => {
@@ -239,6 +274,8 @@ export const BottlePreview: React.FC<BottlePreviewProps> = ({
                     onMouseMove={handleMouseMove}
                     onMouseUp={handleMouseUp}
                     onMouseLeave={handleMouseUp}
+                    onTouchMove={handleTouchMove}
+                    onTouchEnd={handleTouchEnd}
                     style={{
                         transform: `scale(${zoomProp || zoomLevel}) translateY(${yOffset}px)`,
                         transformOrigin: transformOrigin,
@@ -338,6 +375,7 @@ export const BottlePreview: React.FC<BottlePreviewProps> = ({
                                                     <div
                                                         key={layer.id}
                                                         onMouseDown={(e) => handleLayerMouseDown(e, layer.id)}
+                                                        onTouchStart={(e) => handleLayerTouchStart(e, layer.id)}
                                                         onClick={(e) => e.stopPropagation()}
                                                         style={{
                                                             position: 'absolute',
@@ -420,6 +458,7 @@ export const BottlePreview: React.FC<BottlePreviewProps> = ({
                                                     <div
                                                         key={layer.id}
                                                         onMouseDown={(e) => handleLayerMouseDown(e, layer.id)}
+                                                        onTouchStart={(e) => handleLayerTouchStart(e, layer.id)}
                                                         onClick={(e) => e.stopPropagation()}
                                                         style={{
                                                             position: 'absolute',

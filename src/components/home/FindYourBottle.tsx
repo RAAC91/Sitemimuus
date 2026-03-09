@@ -30,7 +30,7 @@ export default function FindYourBottle() {
               viewport={{ once: true }}
               transition={{ delay: i * 0.1 }}
               onClick={() => setActiveFilter(filter)}
-              className={`px-8 py-3 rounded-full font-bold transition-all ${
+              className={`px-8 py-4 rounded-full font-bold transition-all ${
                 activeFilter === filter 
                   ? 'bg-brand-pink text-white shadow-xl shadow-brand-pink/20 scale-105' 
                   : 'bg-white text-zinc-600 hover:bg-zinc-100'

@@ -4,7 +4,7 @@ export default function EditorLayout({
   children: React.ReactNode
 }) {
   return (
-    <div className="h-dvh w-full overflow-hidden">
+    <div className="h-[100dvh] w-full overflow-hidden overscroll-contain">
       {children}
     </div>
   )

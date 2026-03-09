@@ -1,0 +1,253 @@
+/* ═══════════════════════════════════════════════════════════
+   MIMUUS — MOBILE OVERRIDE LAYER
+   ⚠️  REGRA ABSOLUTA: NADA FORA DE @media (max-width: 1024px)
+   ⚠️  DESKTOP = NUNCA TOCADO POR ESSE ARQUIVO
+   
+   Breakpoints:
+     < 1024px → mobile/tablet   (lg no Tailwind)
+     < 768px  → mobile puro     (md no Tailwind)
+     < 480px  → mobile pequeno  (sm)
+   
+   Como usar:
+     Se precisar sobrescrever algo mobile, adicione AQUI.
+     Nunca edite globals.css ou Header/Footer para mobile.
+   ═══════════════════════════════════════════════════════════ */
+
+/* ──────────────────────────────────────────────────────────
+   1. BODY & ROOT — Comportamento base mobile
+   ────────────────────────────────────────────────────────── */
+@media (max-width: 1024px) {
+  html, body {
+    /* Impede bounce scroll no iOS */
+    overscroll-behavior: none;
+    /* Usa altura dinâmica — evita bug de barra de endereço iOS */
+    min-height: 100dvh;
+    overflow-x: hidden;
+    width: 100%;
+  }
+
+  /* Desativa hover states em touch (previne estados "presos") */
+  @media (hover: none) {
+    a:hover, button:hover {
+      opacity: 1;
+    }
+  }
+}
+
+/* ──────────────────────────────────────────────────────────
+   2. TIPOGRAFIA — Escala fluida para mobile
+   ────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  h1 { font-size: 28px; line-height: 1.2; }
+  h2 { font-size: 22px; line-height: 1.3; }
+  h3 { font-size: 18px; line-height: 1.4; }
+  p  { font-size: 15px; line-height: 1.6; }
+}
+
+@media (max-width: 480px) {
+  h1 { font-size: 24px; }
+  h2 { font-size: 20px; }
+}
+
+/* ──────────────────────────────────────────────────────────
+   3. EDITOR — Interface estilo "App" no mobile
+      Desktop continua 100% intacto.
+   ────────────────────────────────────────────────────────── */
+@media (max-width: 1024px) {
+  /* Sidebars escondem — mobile não tem painéis laterais */
+  .editor-sidebar,
+  .editor-float-panel {
+    display: none !important;
+  }
+
+  /* Shell do editor ocupa tela toda como um app nativo */
+  .editor-shell {
+    height: 100dvh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Preview da garrafa — área superior full-width */
+  .bottle-preview-container {
+    width: 100%;
+    border-radius: 0;
+    /* Garante scroll suave iOS no container */
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Área de ferramentas mobile — fixa no bottom (estilo app) */
+  .mobile-tools {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    background: rgba(255, 255, 255, 0.95);
+    -webkit-backdrop-filter: blur(20px);
+    backdrop-filter: blur(20px);
+    border-top: 1px solid #e2e8f0;
+    z-index: 50;
+    padding-bottom: env(safe-area-inset-bottom, 0px); /* iOS home indicator */
+  }
+
+  /* Glass panels no mobile — sem sombra pesada */
+  .glass-panel {
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  }
+
+  /* Upload zone menor no mobile */
+  .upload-zone {
+    height: 80px;
+  }
+
+  /* Painéis internos do editor — scroll suave */
+  .editor-panel-body {
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* ──────────────────────────────────────────────────────────
+   4. NAVEGAÇÃO — Header simplificado mobile
+   ────────────────────────────────────────────────────────── */
+@media (max-width: 1024px) {
+  /* Esconde nav links do desktop — mobile usa MobileNavbar */
+  .header-nav-links {
+    display: none;
+  }
+
+  /* Garante que o header mobile não quebre o layout */
+  header {
+    position: sticky;
+    top: 0;
+    z-index: 40;
+  }
+}
+
+/* ──────────────────────────────────────────────────────────
+   5. GRID & LAYOUT — Reflow de grade para mobile
+   ────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  /* Grid de produtos — 2 colunas no mobile */
+  .products-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+
+  /* Seções — espaçamento reduzido */
+  section {
+    padding-top: 40px;
+    padding-bottom: 40px;
+  }
+}
+
+@media (max-width: 480px) {
+  /* Grid de produtos — 1 coluna em mobile muito pequeno */
+  .products-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ──────────────────────────────────────────────────────────
+   6. HERO — Empilha no mobile, desktop permanece igual
+   ────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .hero-section {
+    flex-direction: column;
+    text-align: center;
+    padding: 40px 20px;
+  }
+
+  .hero-section img {
+    width: 80%;
+    margin: 0 auto;
+  }
+}
+
+/* ──────────────────────────────────────────────────────────
+   7. FILTROS — Sidebar vira bottom sheet / botão no mobile
+   ────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .filters-sidebar {
+    display: none;
+  }
+
+  .mobile-filter-button {
+    display: flex;
+  }
+}
+
+/* ──────────────────────────────────────────────────────────
+   8. TOUCH — Otimizações de interação para touch
+   ────────────────────────────────────────────────────────── */
+@media (max-width: 1024px) {
+  /* Impede seleção de texto ao arramar layers */
+  .bottle-only-capture {
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: none; /* Permite drag com JS sem interferência do browser */
+  }
+
+  /* Sliders maiores — mais fáceis de tocar */
+  input[type="range"] {
+    height: 20px;
+    cursor: pointer;
+  }
+
+  /* Botões — área de toque mínima de 44px (Apple HIG) */
+  button {
+    min-height: 36px;
+  }
+
+  /* Scroll com momentum iOS em todas as áreas scrolláveis */
+  [class*="overflow-y-auto"],
+  [class*="overflow-auto"] {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+}
+
+/* ──────────────────────────────────────────────────────────
+   9. CONTAINER QUERIES — Componentes auto-adaptativos
+      (Suporte: Chrome 105+, Safari 16+, Firefox 110+)
+   ────────────────────────────────────────────────────────── */
+
+/* Ativa context de query no card de produto */
+.product-card-container {
+  container-type: inline-size;
+  container-name: product-card;
+}
+
+/* O card se adapta sozinho ao seu container */
+@container product-card (max-width: 280px) {
+  .product-card-content {
+    flex-direction: column;
+  }
+
+  .product-card-image {
+    width: 100%;
+    aspect-ratio: 1;
+  }
+}
+
+/* ──────────────────────────────────────────────────────────
+   10. SAFE AREA — Suporte a notch / home indicator iOS
+   ────────────────────────────────────────────────────────── */
+@media (max-width: 1024px) {
+  /* Padding para notch superior */
+  .mobile-header-safe {
+    padding-top: max(12px, env(safe-area-inset-top));
+  }
+
+  /* Padding para home indicator inferior */
+  .mobile-bottom-safe {
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
+  }
+
+  /* Fix para elementos fixos no bottom */
+  .fixed-bottom-mobile {
+    bottom: env(safe-area-inset-bottom, 0px);
+  }
+}

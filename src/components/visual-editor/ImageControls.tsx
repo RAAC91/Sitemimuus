@@ -100,7 +100,7 @@ export const ImageControls: React.FC<ImageControlsProps> = ({
 
                 {/* LAYERS LIST — Photoshop style */}
                 {imageLayers.length > 0 && (
-                    <section className="flex flex-col gap-2">
+                    <section className="hidden lg:flex flex-col gap-2">
                         <div className="flex items-center justify-between">
                             <p className="section-label">Camadas</p>
                             <span className="text-[10px] font-black text-slate-400 tabular-nums">{imageLayers.length}</span>
@@ -191,7 +191,7 @@ export const ImageControls: React.FC<ImageControlsProps> = ({
             {/* PANEL 2 — ADJUST (FLOATING)                 */}
             {/* ─────────────────────────────────────────── */}
             {isAdjustOpen && selectedLayer && (
-                <div className="fixed lg:absolute left-4 lg:left-full top-20 lg:top-0 lg:ml-6 w-[calc(100vw-2rem)] lg:w-[320px] max-h-[80vh] lg:max-h-full overflow-y-auto custom-scrollbar glass-panel rounded-3xl p-5 flex flex-col gap-5 z-50 shadow-2xl animate-in slide-in-from-left-4 fade-in duration-300 border border-slate-200/50">
+                <div className="hidden lg:flex absolute left-full top-0 ml-6 w-[320px] max-h-full overflow-y-auto custom-scrollbar glass-panel rounded-xl p-5 flex-col gap-5 z-50 shadow-2xl animate-in slide-in-from-left-4 fade-in duration-300 border border-slate-200/50">
                     {/* Header */}
                     <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-xl overflow-hidden border border-slate-200 shrink-0 shadow-sm bg-slate-50 p-1 flex items-center justify-center">

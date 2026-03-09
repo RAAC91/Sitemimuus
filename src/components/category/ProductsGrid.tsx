@@ -4,6 +4,7 @@ import { Product } from "@/types";
 
 interface ProductsGridProps {
     products: Product[];
+    mobileColumns?: 1 | 2;
 }
 
 const container: Variants = {
@@ -28,14 +29,16 @@ const item: Variants = {
   }
 };
 
-export function ProductsGrid({ products }: ProductsGridProps) {
+export function ProductsGrid({ products, mobileColumns = 1 }: ProductsGridProps) {
+  const mobileGridClass = mobileColumns === 2 ? "grid-cols-2" : "grid-cols-1";
+
   return (
     <section className="pb-32">
       <motion.div 
         variants={container}
         initial="hidden"
         animate="show"
-        className="grid gap-8 grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3"
+        className={`grid gap-4 md:gap-8 ${mobileGridClass} sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3`}
       >
         <AnimatePresence mode="popLayout">
           {products.map((p) => (

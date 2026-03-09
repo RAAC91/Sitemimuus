@@ -427,6 +427,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, items
                 {/* ── TOP BAR ──────────────────────────────────────── */}
                 <div className="h-14 shrink-0 flex items-center gap-4 px-6 bg-white border-b border-slate-100 shadow-sm">
                     <button
+                        type="button"
                         onClick={onClose}
                         className="flex items-center gap-2 text-slate-400 hover:text-slate-800 transition-colors text-[11px] font-black uppercase tracking-wider"
                     >

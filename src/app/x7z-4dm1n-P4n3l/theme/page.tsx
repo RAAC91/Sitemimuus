@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ChevronRight, Search, Bell, ChevronDown, Store, Palette, LayoutDashboard, ShoppingCart, Package, Users, Settings, Smartphone, Monitor, ChevronLeft, CloudUpload, History, Eye, ArrowLeft, Menu, GripVertical, Star, Video, HelpCircle } from "lucide-react";
 import { Reorder, useDragControls } from "framer-motion";
+import { useRouter } from "next/navigation";
 
 const INITIAL_SECTIONS = [
   { id: 'hero', label: 'Hero Banner', icon: LayoutDashboard },
@@ -13,6 +14,7 @@ const INITIAL_SECTIONS = [
 ];
 
 export default function ThemeCustomizerPage() {
+  const router = useRouter();
   const [activeDevice, setActiveDevice] = useState<'desktop' | 'mobile'>('desktop');
   const [logoPosition, setLogoPosition] = useState('Middle center');
   const [isSticky, setIsSticky] = useState(true);
@@ -25,7 +27,7 @@ export default function ThemeCustomizerPage() {
         {/* Header do Editor de Tema */}
         <header className="h-14 bg-white border-b border-gray-200 flex items-center justify-between px-4 shrink-0 z-50">
             <div className="flex items-center gap-4">
-                <button className="flex items-center justify-center p-1.5 hover:bg-gray-100 rounded text-gray-500">
+                <button type="button" onClick={() => router.push('/x7z-4dm1n-P4n3l')} className="flex items-center justify-center p-1.5 hover:bg-gray-100 rounded text-gray-500">
                     <ArrowLeft size={20} />
                 </button>
                 <div className="h-6 w-[1px] bg-gray-200 mx-1"></div>

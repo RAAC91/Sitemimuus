@@ -329,25 +329,40 @@ export default function Header() {
         )}
       </AnimatePresence>
 
-      {/* Mobile Menu */}
+      {/* Mobile Menu Backdrop */}
       <AnimatePresence>
         {mobileMenu && (
           <motion.div
-            initial={{ opacity: 0, x: "100%" }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setMobileMenu(false)}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[90] md:hidden"
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Mobile Menu Drawer */}
+      <AnimatePresence>
+        {mobileMenu && (
+          <motion.div
+            initial={{ opacity: 1, x: "-100%" }}
             animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: "100%" }}
+            exit={{ opacity: 1, x: "-100%" }}
             transition={{ type: "spring", damping: 25, stiffness: 200 }}
-            className={`fixed inset-0 z-100 p-8 flex flex-col ${isDark ? "bg-slate-950 text-white" : "bg-white text-slate-900"}`}
+            className={`fixed inset-y-0 left-0 w-[85vw] max-w-sm z-[100] p-6 md:p-8 flex flex-col shadow-2xl md:hidden overflow-y-auto ${isDark ? "bg-slate-950 text-white" : "bg-white text-slate-900"}`}
+            style={{ WebkitOverflowScrolling: "touch", overscrollBehavior: "contain" }}
           >
-            <div className="flex justify-between items-center mb-16">
-              <span className="text-3xl font-black tracking-tight">
+            <div className="flex justify-between items-center mb-12">
+              <Link href="/" onClick={() => setMobileMenu(false)} className="text-3xl font-black tracking-tight shrink-0">
                 mi<span className="text-brand-pink">mu</span>us<span className="text-brand-cyan">.</span>
-              </span>
+              </Link>
               <button
                 onClick={() => setMobileMenu(false)}
                 className="p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+                aria-label="Fechar menu"
               >
-                <X className="w-8 h-8" />
+                <X className="w-6 h-6" />
               </button>
             </div>
 
@@ -362,14 +377,14 @@ export default function Header() {
                     onClick={() => setMobileMenu(false)}
                     className={
                       isPersonalize
-                        ? "text-3xl font-black tracking-tight transition-all text-transparent bg-clip-text bg-gradient-to-r from-brand-pink to-[#ff7eb3] flex items-center gap-3 w-fit animate-[pulse_3s_ease-in-out_infinite]"
-                        : `text-4xl font-black tracking-tight transition-colors ${
+                        ? "text-2xl font-black tracking-tight transition-all text-transparent bg-clip-text bg-gradient-to-r from-brand-pink to-[#ff7eb3] flex items-center gap-3 w-fit animate-[pulse_3s_ease-in-out_infinite]"
+                        : `text-2xl font-black tracking-tight transition-colors ${
                             isActive ? "text-brand-pink" : "hover:text-brand-pink"
                           }`
                     }
                   >
-                    <motion.div initial={{ x: 50, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ delay: i * 0.1 }} className="flex items-center gap-3">
-                      {isPersonalize && <span className="text-2xl grayscale filter drop-shadow-sm">🎨</span>}
+                    <motion.div initial={{ x: -20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ delay: i * 0.1 }} className="flex items-center gap-3">
+                      {isPersonalize && <span className="text-xl grayscale filter drop-shadow-sm">🎨</span>}
                       {item.name}
                     </motion.div>
                   </Link>
@@ -378,7 +393,7 @@ export default function Header() {
             </nav>
 
             <div className="mt-auto pt-8 border-t border-black/10 dark:border-white/10">
-              <p className="text-sm font-medium opacity-50 uppercase tracking-widest mb-4">Siga-nos</p>
+              <p className="text-xs font-medium opacity-50 uppercase tracking-widest mb-4">Siga-nos</p>
               <div className="flex gap-4">
                 {SOCIAL_LINKS.map(({ href, label, icon: Icon }) => (
                   <a

@@ -95,10 +95,10 @@ export default function DetailsSection() {
 
             {/* AFTER IMAGE - MOTION GRAPHICS */}
             <div 
-              className="absolute inset-y-0 left-0 overflow-hidden bg-white border-r-2 border-brand-pink shadow-[-10px_0_20px_rgba(0,0,0,0.2)]"
-              style={{ width: `${sliderPos}%` }}
+              className="absolute inset-0 overflow-hidden bg-white"
+              style={{ clipPath: `inset(0 ${100 - sliderPos}% 0 0)` }}
             >
-              <div className="relative w-[500px] h-full">
+              <div className="relative w-full h-full">
                 <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-pink-50 via-white to-cyan-50">
                   {/* Subtle shimmer overlay */}
                   <div className={`absolute inset-0 opacity-10 bg-gradient-to-tr ${activeColor === 'blue' ? 'from-brand-cyan/20 via-transparent to-brand-pink/20' : 'from-zinc-800/20 via-transparent to-brand-pink/20'}`} />
@@ -144,7 +144,7 @@ export default function DetailsSection() {
                     <img 
                       src={currentModel.after} 
                       alt="Garrafa personalizada Mimuus" 
-                      className="h-[85%] w-full object-contain pointer-events-none scale-105 drop-shadow-2xl"
+                      className="h-[85%] w-full object-contain pointer-events-none drop-shadow-2xl"
                     />
                   </div>
                   
@@ -165,6 +165,9 @@ export default function DetailsSection() {
               className="absolute inset-y-0 w-10 -ml-5 flex items-center justify-center z-30 pointer-events-none"
               style={{ left: `${sliderPos}%` }}
             >
+              {/* Divider Line & Shadow */}
+              <div className="absolute inset-y-0 left-1/2 w-[2px] -ml-[1px] bg-brand-pink shadow-[-10px_0_20px_rgba(0,0,0,0.2)]" />
+
               {/* Vertical Light Beam */}
               <div className="absolute inset-y-0 w-1 bg-gradient-to-b from-transparent via-brand-cyan to-transparent opacity-60 blur-sm" />
               <div className="absolute inset-y-0 w-0.5 bg-gradient-to-b from-transparent via-white to-transparent opacity-80" />
@@ -243,7 +246,7 @@ export default function DetailsSection() {
               />
               
               <div className="absolute bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center">
-                <div className="px-6 py-3 bg-zinc-900/90 backdrop-blur-md text-white rounded-full text-[10px] font-black uppercase tracking-widest relative z-10 flex items-center gap-2 shadow-2xl">
+                <div className="px-8 py-4 bg-zinc-900/90 backdrop-blur-md text-white rounded-full text-[10px] font-black uppercase tracking-widest relative z-10 flex items-center gap-2 shadow-2xl">
                   <div className="w-2 h-2 rounded-full bg-brand-pink animate-pulse" />
                   Base de Silicone Inclusa
                 </div>

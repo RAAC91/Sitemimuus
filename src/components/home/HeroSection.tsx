@@ -114,7 +114,7 @@ export default function HeroSection({ slides = DEFAULT_SLIDES }: HeroSectionProp
                 <div className="flex flex-col sm:flex-row items-center gap-6 justify-center lg:justify-start">
                 <Link 
                   href="/garrafas-personalizadas" 
-                  className="bg-accent text-white px-10 py-5 rounded-full font-black text-xs uppercase tracking-widest hover:opacity-90 transition-all duration-500 shadow-xl shadow-black/5"
+                  className="bg-accent text-white px-8 py-4 rounded-full font-black text-xs uppercase tracking-widest hover:opacity-90 transition-all duration-500 shadow-xl shadow-black/5"
                 >
                   GARANTIR A MINHA →
                 </Link>

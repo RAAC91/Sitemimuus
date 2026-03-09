@@ -16,6 +16,8 @@ interface TextControlsProps {
     ICON_CATEGORIES: Record<string, string[]>;
     onAddIcon: (url: string) => void;
     onNewTextChange?: (text: string) => void;
+    /** When true, hides the icon library section (used in mobile Texto tab) */
+    hideIconLib?: boolean;
 }
 
 export const TextControls: React.FC<TextControlsProps> = ({
@@ -29,7 +31,8 @@ export const TextControls: React.FC<TextControlsProps> = ({
     setActiveIconCat,
     ICON_CATEGORIES,
     onAddIcon,
-    onNewTextChange
+    onNewTextChange,
+    hideIconLib = false
 }) => {
     const [newText, setNewText] = useState('');
     const [dynamicIcons, setDynamicIcons] = useState<Record<string, string[]>>({});
@@ -120,7 +123,7 @@ export const TextControls: React.FC<TextControlsProps> = ({
 
             {/* ── SECTION: TEXT LAYERS (Photoshop-style) ── */}
             {textLayers.length > 0 && (
-                <div className="flex flex-col gap-2 relative">
+                <div className="hidden lg:flex flex-col gap-2 relative">
                     <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-[#94a3b8]">
                         Camadas · {textLayers.length}
                     </h4>
@@ -346,7 +349,7 @@ export const TextControls: React.FC<TextControlsProps> = ({
             )}
 
             {/* ── SECTION: ICON LIBRARY ── */}
-            <div className="flex flex-col gap-4 pt-6 mt-2 border-t border-slate-100">
+            {!hideIconLib && <div className="flex flex-col gap-4 pt-6 mt-2 border-t border-slate-100">
                 <h4 className="text-[10px] font-black tracking-[0.2em] text-[#94a3b8] uppercase">Biblioteca</h4>
 
                 {/* Category tabs — horizontal scroll, no clip */}
@@ -398,7 +401,7 @@ export const TextControls: React.FC<TextControlsProps> = ({
                         </button>
                     </div>
                 </div>
-            </div>
+            </div>}
 
             {/* ── SECTION: COLOR PALETTE (below library) ── */}
             <div className="flex flex-col gap-3 pt-6 border-t border-slate-100">

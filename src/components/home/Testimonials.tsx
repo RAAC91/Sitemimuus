@@ -99,7 +99,7 @@ export default function Testimonials({
                       </div>
 
                       <div className="absolute bottom-6 left-6 z-20">
-                          <span className="text-white font-bold text-sm bg-black/20 px-3 py-1 rounded-full backdrop-blur-md">
+                          <span className="text-white font-bold text-sm bg-black/20 px-4 py-2 rounded-full backdrop-blur-md">
                             {t.user}
                           </span>
                       </div>
@@ -110,7 +110,7 @@ export default function Testimonials({
                            {[...Array(t.rating || 5)].map((_, s) => <Star key={s} size={14} fill="currentColor" />)}
                        </div>
                        <p className="text-foreground font-medium leading-relaxed mb-6">"{t.content}"</p>
-                       <div className="flex items-center gap-3">
+                       <div className="flex items-center gap-4">
                            <div className="w-10 h-10 rounded-full bg-muted" />
                            <div>
                                <p className="font-bold text-xs uppercase tracking-wider text-foreground">{t.name}</p>

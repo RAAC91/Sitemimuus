@@ -2,6 +2,8 @@
 "use client"
 
 import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { generateStickerDesign, removeImageBackground } from '@/services/ai/gemini';
 import { SKUS, ICON_CATEGORIES, EDITOR_COLORS, FONTS, type EditorLayer } from './constants';
 import { Icons } from './Icons';
@@ -48,7 +50,12 @@ interface BottleEditorProps {
 }
 
 export const BottleEditor: React.FC<BottleEditorProps> = ({ onAddToCart, onBack, initialSku, isAdmin: isAdminProp, productId }) => {
-    
+    const router = useRouter();
+
+    const handleBack = () => {
+        if (onBack) onBack();
+        else router.back();
+    };
     
     // --- STATE ---
     const [sku, setSku] = useState<string>(() => {
@@ -77,7 +84,9 @@ export const BottleEditor: React.FC<BottleEditorProps> = ({ onAddToCart, onBack,
         if (typeof window !== 'undefined') {
             const saved = localStorage.getItem('mimuus_default_position_text');
             // On mobile, use a safe default; on desktop, restore persisted value
-            if (isMobileViewport()) return { x: 50, y: 55 };
+            // Compensate for matrix3d translate(68.89px, 151.14px) on the HD canvas.
+            // x=50% on HD canvas renders ~64% visually → back-calculate center: x≈39, y≈37
+            if (isMobileViewport()) return { x: 39, y: 50 };
             return saved ? JSON.parse(saved) : { x: 50, y: 90 };
         }
         return { x: 50, y: 90 };
@@ -86,8 +95,8 @@ export const BottleEditor: React.FC<BottleEditorProps> = ({ onAddToCart, onBack,
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const [defaultImagePosition, setDefaultImagePosition] = useState<{ x: number; y: number }>(() => {
         if (typeof window !== 'undefined') {
-            // On mobile use centered safe default — desktop y:70 doesn't map to 1:1 canvas
-            if (isMobileViewport()) return { x: 50, y: 45 };
+            // On mobile use same position as text
+            if (isMobileViewport()) return { x: 39, y: 50 };
             const saved = localStorage.getItem('mimuus_default_position_image');
             return saved ? JSON.parse(saved) : { x: 50, y: 70 };
         }
@@ -96,8 +105,8 @@ export const BottleEditor: React.FC<BottleEditorProps> = ({ onAddToCart, onBack,
     
     const [defaultIconPosition, setDefaultIconPosition] = useState<{ x: number; y: number }>(() => {
         if (typeof window !== 'undefined') {
-            // On mobile use centered safe default — desktop-calibrated x/y don't apply
-            if (isMobileViewport()) return { x: 50, y: 45 };
+            // On mobile use same position as text
+            if (isMobileViewport()) return { x: 39, y: 50 };
             const saved = localStorage.getItem('mimuus_default_position_icon');
             return saved ? JSON.parse(saved) : { x: 63.1, y: 17.4 };
         }
@@ -145,7 +154,7 @@ export const BottleEditor: React.FC<BottleEditorProps> = ({ onAddToCart, onBack,
         const handleResize = () => {
             setDefaultTextPosition(prev => {
                 const mobile = isMobileViewport();
-                if (mobile && prev.y > 80) return { x: 50, y: 55 };
+                if (mobile && prev.y > 80) return { x: 39, y: 50 };
                 if (!mobile && prev.y < 80) return { x: 50, y: 90 };
                 return prev;
             });
@@ -592,20 +601,20 @@ export const BottleEditor: React.FC<BottleEditorProps> = ({ onAddToCart, onBack,
     const isPanelRight = selectedLayer?.type === 'text';
 
     return (
-        <div className="editor-shell text-slate-800 h-[100dvh] w-full flex flex-col overflow-hidden relative font-sans selection:bg-[#FF4586] selection:text-white z-50">
-            <XPToast />
+        <div className="editor-shell text-slate-800 h-[100dvh] w-full flex flex-col overflow-hidden relative font-sans selection:bg-[#FF4586] selection:text-white z-50 overscroll-contain">
+            <span className="hidden lg:contents"><XPToast /></span>
 
             {/* Header */}
             <header className="h-14 editor-header border-b border-slate-200 flex justify-between items-center px-4 lg:px-6 z-50 relative shrink-0">
                 {/* LEFT: Back + Logo + Nav */}
                 <div className="flex items-center gap-6">
                     <div className="flex items-center gap-3">
-                        <button onClick={onBack} title="Voltar" className="p-1.5 rounded-[8px] hover:bg-slate-100 transition-colors text-slate-500">
+                        <button onClick={handleBack} title="Voltar" className="p-1.5 rounded-[8px] hover:bg-slate-100 transition-colors text-slate-500">
                             <Icons.ArrowLeft className="w-4 h-4" />
                         </button>
-                        <span className="text-xl font-black tracking-tight text-slate-900 shrink-0">
+                        <Link href="/" className="text-xl font-black tracking-tight text-slate-900 shrink-0">
                             mi<span className="text-[#FF4586]">mu</span>us<span className="text-[#00C9D4]">.</span>
-                        </span>
+                        </Link>
                         <span className="text-[9px] font-black uppercase text-[#FF4586] bg-[#FF4586]/10 border border-[#FF4586]/20 px-2 py-0.5 rounded-[4px] tracking-widest hidden sm:inline">Studio</span>
                     </div>
 
@@ -637,11 +646,11 @@ export const BottleEditor: React.FC<BottleEditorProps> = ({ onAddToCart, onBack,
                     <button onClick={() => redo(s => { setSku(s.sku); setLayers(s.layers); setSelectedLayerId(s.selectedLayerId); })} disabled={!canRedo} className="p-1.5 rounded-[8px] hover:bg-slate-100 transition-colors text-slate-400 disabled:opacity-30" title="Refazer">
                         <Icons.Redo className="w-4 h-4" />
                     </button>
-                    <button onClick={() => { if (window.confirm('Limpar tudo?')) { setLayers([]); setSelectedLayerId(null); } }} className="p-1.5 rounded-[8px] hover:bg-slate-100 transition-colors" title="Limpar tudo">
-                        <Icons.Trash className="w-4 h-4 text-red-400" />
+                    <button onClick={() => { if (window.confirm('Limpar tudo?')) { setLayers([]); setSelectedLayerId(null); } }} className="p-2 rounded-xl bg-red-50 border border-red-100 hover:bg-red-100 hover:border-red-200 shadow-sm transition-colors text-red-500 hover:text-red-600 active:scale-95" title="Limpar tudo">
+                        <Icons.Trash className="w-4 h-4" />
                     </button>
                     <div className="h-4 w-px bg-slate-200 hidden sm:block mx-1"></div>
-                    <div className="hidden sm:block"><XPBar /></div>
+                    <div className="hidden lg:block"><XPBar /></div>
                     {isAdmin && (
                         <button onClick={handleAdminClick} disabled={isBusy} className="hidden lg:flex items-center gap-1.5 bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 px-3 py-1.5 rounded-[8px] font-bold uppercase tracking-wider text-[10px] hover:bg-emerald-500/20 transition-all">
                             <Icons.Save className="w-3 h-3" /> Salvar
@@ -655,22 +664,26 @@ export const BottleEditor: React.FC<BottleEditorProps> = ({ onAddToCart, onBack,
             </header>
 
             {/* ================================================================
-                MOBILE EDITOR — TikTok preview × Canva scroll (lg:hidden)
-                Web/desktop layout is untouched below in <main>
+                MOBILE EDITOR — True Tab UI (lg:hidden)
+                Desktop layout untouched below in <main>
             ================================================================ */}
             {(() => {
                 const selectedLayer = layers.find(l => l.id === selectedLayerId) ?? null;
 
-                // Scroll helper — scrolls the editing area to a given section id
-                const scrollToSection = (id: string) => {
-                    const el = mobileScrollRef.current?.querySelector(`#${id}`);
-                    el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                };
+                // Active tab: 'color' | 'images' | 'text' | 'cta'
+                const mobileTab = activeMobileTab === 'color' || activeMobileTab === 'stamps' ? 'color'
+                    : activeMobileTab === 'text' ? 'text'
+                    : activeMobileTab === 'icons' ? 'icons'
+                    : activeMobileTab === 'summary' ? 'cta'
+                    : activeMobileTab === 'material' ? 'images'
+                    : 'color';
+
+                const setTab = (t: typeof activeMobileTab) => setActiveMobileTab(t);
 
                 return (
                 <div className="lg:hidden flex-1 flex flex-col overflow-hidden">
 
-                    {/* ── Sticky bottle preview (no background) ─────────────── */}
+                    {/* ── Sticky bottle preview ─────────────── */}
                     <div className="shrink-0 w-full aspect-square relative overflow-hidden bg-transparent">
                         <BottlePreview
                             sku={sku} lidColor={lidColor} layers={layers}
@@ -684,312 +697,462 @@ export const BottleEditor: React.FC<BottleEditorProps> = ({ onAddToCart, onBack,
                         />
                     </div>
 
-                    {/* ── Sticky 3-tab nav ──────────────────────────────────── */}
-                    <div className="shrink-0 flex border-b border-slate-100 bg-white shadow-sm z-10">
-                        <button
-                            onClick={() => scrollToSection('mobile-section-color')}
-                            className="flex-1 flex flex-col items-center gap-1 py-2.5 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-[#FF4586] transition-colors active:bg-slate-50"
-                        >
-                            <div className="w-6 h-6 rounded-lg flex items-center justify-center bg-linear-to-br from-[#FF4586] to-[#FF8C42]">
-                                <Icons.Palette className="w-3.5 h-3.5 text-white" />
-                            </div>
-                            Cor
-                        </button>
-                        <button
-                            onClick={() => scrollToSection('mobile-section-images')}
-                            className="flex-1 flex flex-col items-center gap-1 py-2.5 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-indigo-500 transition-colors active:bg-slate-50"
-                        >
-                            <div className="w-6 h-6 rounded-lg flex items-center justify-center bg-linear-to-br from-indigo-500 to-blue-600">
-                                <Icons.Layers className="w-3.5 h-3.5 text-white" />
-                            </div>
-                            Imagem
-                        </button>
-                        <button
-                            onClick={() => scrollToSection('mobile-section-text')}
-                            className="flex-1 flex flex-col items-center gap-1 py-2.5 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-rose-500 transition-colors active:bg-slate-50"
-                        >
-                            <div className="w-6 h-6 rounded-lg flex items-center justify-center bg-linear-to-br from-rose-400 to-orange-400">
-                                <Icons.Type className="w-3.5 h-3.5 text-white" />
-                            </div>
-                            Texto
-                        </button>
-                        <button
-                            onClick={() => scrollToSection('mobile-section-cta')}
-                            className="flex-1 flex flex-col items-center gap-1 py-2.5 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-emerald-600 transition-colors active:bg-slate-50"
-                        >
-                            <div className="w-6 h-6 rounded-lg flex items-center justify-center bg-linear-to-br from-emerald-400 to-teal-500">
-                                <Icons.ShoppingBag className="w-3.5 h-3.5 text-white" />
-                            </div>
-                            Comprar
-                        </button>
+                    {/* ── Tab nav ────────────────────────────── */}
+                    <div className="shrink-0 flex border-b border-slate-100 bg-white shadow-sm z-10 overflow-x-auto hide-scrollbar">
+                        {([
+                            { id: 'color',  label: 'Cor',     icon: <Icons.Palette className="w-3.5 h-3.5 text-white" />, grad: 'from-[#FF4586] to-[#FF8C42]', active: 'text-[#FF4586]' },
+                            { id: 'material', label: 'Imagem',  icon: <Icons.Layers  className="w-3.5 h-3.5 text-white" />, grad: 'from-indigo-500 to-blue-600',   active: 'text-indigo-500' },
+                            { id: 'text',   label: 'Texto',   icon: <Icons.Type    className="w-3.5 h-3.5 text-white" />, grad: 'from-rose-400 to-orange-400',    active: 'text-rose-500' },
+                            { id: 'icons',  label: 'Ícones',  icon: <Icons.Star    className="w-3.5 h-3.5 text-white" />, grad: 'from-amber-400 to-orange-500',   active: 'text-amber-500' },
+                            { id: 'summary', label: 'Comprar', icon: <Icons.ShoppingBag className="w-3.5 h-3.5 text-white" />, grad: 'from-emerald-400 to-teal-500', active: 'text-emerald-600' },
+                        ] as const).map(tab => {
+                            const isActive = mobileTab === (tab.id === 'material' ? 'images' : tab.id === 'summary' ? 'cta' : tab.id);
+                            return (
+                                <button
+                                    key={tab.id}
+                                    onClick={() => setTab(tab.id as typeof activeMobileTab)}
+                                    className={`flex-1 min-w-[70px] flex flex-col items-center gap-1 py-2.5 text-[10px] font-black uppercase tracking-widest transition-colors active:bg-slate-50 border-b-2 ${isActive ? `${tab.active} border-current` : 'text-slate-400 border-transparent'}`}
+                                >
+                                    <div className={`w-6 h-6 rounded-lg flex items-center justify-center bg-linear-to-br ${tab.grad} ${!isActive ? 'opacity-50' : ''}`}>
+                                        {tab.icon}
+                                    </div>
+                                    {tab.label}
+                                </button>
+                            );
+                        })}
                     </div>
 
-                    {/* ── Scrollable editing sections ───────────────────────── */}
-                    <div ref={mobileScrollRef} className="flex-1 min-h-0 overflow-y-auto bg-white overscroll-contain">
-
-                        {/* ── 1. Cor da Garrafa ── */}
-                        <div id="mobile-section-color" className="border-b border-slate-100">
-                            <div className="flex items-center gap-3 px-4 pt-5 pb-3">
-                                <div className="w-9 h-9 rounded-2xl flex items-center justify-center bg-linear-to-br from-[#FF4586] to-[#FF8C42] shadow-sm shrink-0">
-                                    <Icons.Palette className="w-4 h-4 text-white" />
-                                </div>
-                                <div>
-                                    <h3 className="font-black text-sm text-slate-800 leading-tight">Cor da Garrafa</h3>
-                                    <p className="text-[11px] text-slate-400 font-medium">Escolha a cor ideal</p>
-                                </div>
-                            </div>
-                            <div className="px-4 pb-5">
+                    {/* Scrollable Main Area (Mobile) */}
+                    <div ref={mobileScrollRef} className="flex-1 min-h-0 overflow-y-auto bg-white overscroll-contain" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}>
+                        {/* Tab Content */}
+                        {/* TAB: Cor da Garrafa */}
+                        {mobileTab === 'color' && (
+                            <div className="px-4 pt-5 pb-8">
+                                <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-4">Escolha a cor da garrafa</p>
                                 <BottleColorPicker selectedSku={sku} onSelectSku={setSku} />
                             </div>
-                        </div>
+                        )}
 
-                        {/* ── 2. Arte & Imagens ── */}
-                        <div id="mobile-section-images" className="border-b border-slate-100">
-                            <div className="flex items-center gap-3 px-4 pt-5 pb-3">
-                                <div className="w-9 h-9 rounded-2xl flex items-center justify-center bg-linear-to-br from-indigo-500 to-blue-600 shadow-sm shrink-0">
-                                    <Icons.Layers className="w-4 h-4 text-white" />
-                                </div>
-                                <div>
-                                    <h3 className="font-black text-sm text-slate-800 leading-tight">Arte & Imagens</h3>
-                                    <p className="text-[11px] text-slate-400 font-medium">Stickers, ícones e suas fotos</p>
-                                </div>
-                            </div>
-                            <div className="px-4 pb-3">
-                                <ImageControls
-                                    layers={layers} expandedLayerId={selectedLayerId} onExpandLayer={handleSelectLayer}
-                                    onUpdateLayer={updateLayer} onAddImage={handleAddImage} onDeleteLayer={deleteLayer}
-                                    isBusy={isBusy} aiPrompt={aiPrompt} setAiPrompt={setAiPrompt} isAiLoading={isAiLoading}
-                                    handleAiGenerate={handleAiGenerate} handleAiBackgroundRemoval={handleAiBackgroundRemoval}
-                                    handleUpload={handleUpload} hideAddSection={false}
-                                />
-                            </div>
-
-                            {/* ── Inline layer properties (image/icon) ── */}
-                            {selectedLayer && (selectedLayer.type === 'image' || selectedLayer.type === 'icon') && (
-                                <div className="mx-4 mb-5 rounded-2xl bg-slate-50 border border-slate-200 p-4 flex flex-col gap-4">
-                                    {/* Header */}
-                                    <div className="flex items-center gap-3">
-                                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                                        <img src={selectedLayer.content} alt="" className="w-9 h-9 rounded-xl object-contain bg-white border border-slate-200 p-1 shrink-0" />
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-[11px] font-black text-slate-700 uppercase tracking-widest leading-none">Ajustes</p>
-                                            <p className="text-[10px] text-indigo-500 font-bold mt-0.5">{selectedLayer.type === 'icon' ? 'Ícone selecionado' : 'Imagem selecionada'}</p>
-                                        </div>
-                                        <button title="Desselecionar" onClick={() => handleSelectLayer(null)}
-                                            className="w-7 h-7 rounded-full bg-slate-200 hover:bg-red-100 hover:text-red-500 transition-all flex items-center justify-center text-slate-500">
-                                            <Icons.X className="w-3.5 h-3.5" />
-                                        </button>
+                        {/* TAB: Arte & Imagens */}
+                        {mobileTab === 'images' && (
+                            <div className="pt-5 pb-8 flex flex-col gap-4">
+                                {layers.filter(l => l.type === 'image').length > 0 && (
+                                    <div className="px-4 flex flex-col gap-2">
+                                        <p className="text-[10px] font-black tracking-[0.2em] text-slate-400 uppercase">Camadas de Imagem</p>
+                                        {layers.filter(l => l.type === 'image').map(layer => (
+                                            <div
+                                                key={layer.id}
+                                                onClick={() => handleSelectLayer(layer.id === selectedLayerId ? null : layer.id)}
+                                                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl border transition-all cursor-pointer ${
+                                                    layer.id === selectedLayerId
+                                                        ? 'bg-indigo-50 border-indigo-300 shadow-sm'
+                                                        : 'bg-white border-slate-200 hover:border-slate-300'
+                                                }`}
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center shrink-0 border border-indigo-200 overflow-hidden">
+                                                        <img src={layer.content} alt="img" className="w-full h-full object-cover" />
+                                                    </div>
+                                                    <span className="text-sm font-bold text-slate-700">Imagem selecionada</span>
+                                                </div>
+                                                <button
+                                                    onClick={e => { e.stopPropagation(); deleteLayer(layer.id); if (selectedLayerId === layer.id) handleSelectLayer(null); }}
+                                                    className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center bg-red-50 text-red-500 border border-red-100 shadow-sm active:scale-95 hover:bg-red-100 hover:border-red-200 transition-all font-bold"
+                                                    title="Excluir camada"
+                                                >
+                                                    <Icons.Trash className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        ))}
                                     </div>
+                                )}
 
-                                    <div className="h-px bg-slate-200" />
-
-                                    {/* Escala */}
-                                    <div className="flex flex-col gap-1.5">
-                                        <div className="flex justify-between">
-                                            <span className="text-[11px] font-black text-slate-600 uppercase tracking-widest">Escala</span>
-                                            <span className="text-[11px] font-bold text-indigo-500">{Math.round((selectedLayer.size - 1000) / 10)}%</span>
+                                {/* Inline image adjustments — shown only when an image is selected */}
+                                {selectedLayer && selectedLayer.type === 'image' && (
+                                    <div className="mx-4 rounded-2xl bg-indigo-50 border border-indigo-200 p-4 flex flex-col gap-4">
+                                        <div className="flex items-center gap-3">
+                                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                                            <img src={selectedLayer.content} alt="" className="w-9 h-9 rounded-xl object-contain bg-white border border-indigo-200 p-1 shrink-0" />
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-[11px] font-black text-slate-700 uppercase tracking-widest leading-none">Ajustes</p>
+                                                <p className="text-[10px] text-indigo-500 font-bold mt-0.5">Imagem</p>
+                                            </div>
+                                            <button title="Desselecionar" onClick={() => handleSelectLayer(null)}
+                                                className="w-8 h-8 rounded-full bg-indigo-100 border border-indigo-200 shadow-sm active:scale-95 hover:bg-red-100 hover:text-red-500 hover:border-red-200 transition-all flex items-center justify-center text-indigo-600 font-bold">
+                                                <Icons.X className="w-4 h-4" />
+                                            </button>
                                         </div>
-                                        <input type="range" min="-100" max="100" value={(selectedLayer.size - 1000) / 10}
-                                            title="Escala" className="slider-track-dark"
-                                            onChange={e => updateLayer(selectedLayer.id, { size: (Number(e.target.value) * 10) + 1000 })} />
-                                    </div>
-
-                                    {/* Rotação */}
-                                    <div className="flex flex-col gap-1.5">
-                                        <div className="flex justify-between">
-                                            <span className="text-[11px] font-black text-slate-600 uppercase tracking-widest">Rotação</span>
-                                            <span className="text-[11px] font-bold text-indigo-500">{selectedLayer.rotation ?? 0}°</span>
-                                        </div>
-                                        <input type="range" min="-180" max="180" value={selectedLayer.rotation ?? 0}
-                                            title="Rotação" className="slider-track-dark"
-                                            onChange={e => updateLayer(selectedLayer.id, { rotation: Number(e.target.value) })} />
-                                    </div>
-
-                                    {/* Esticar */}
-                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="h-px bg-indigo-200" />
                                         <div className="flex flex-col gap-1.5">
                                             <div className="flex justify-between">
-                                                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Altura ↕</span>
-                                                <span className="text-[10px] font-bold text-indigo-400">{Math.round((selectedLayer.scaleY ?? 1) * 100) - 100}%</span>
+                                                <span className="text-[11px] font-black text-slate-600 uppercase tracking-widest">Escala</span>
+                                                <span className="text-[11px] font-bold text-indigo-500">{Math.round((selectedLayer.size - 1000) / 10)}%</span>
                                             </div>
-                                            <input type="range" min="-100" max="100" value={Math.round((selectedLayer.scaleY ?? 1) * 100) - 100}
-                                                title="Esticar altura" className="slider-track-dark"
-                                                onChange={e => updateLayer(selectedLayer.id, { scaleY: Math.max(0.1, (Number(e.target.value) + 100) / 100) })} />
+                                            <input type="range" min="-100" max="100" value={(selectedLayer.size - 1000) / 10}
+                                                title="Escala" className="slider-track-dark"
+                                                onChange={e => updateLayer(selectedLayer.id, { size: (Number(e.target.value) * 10) + 1000 })} />
                                         </div>
                                         <div className="flex flex-col gap-1.5">
                                             <div className="flex justify-between">
-                                                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Largura ↔</span>
-                                                <span className="text-[10px] font-bold text-indigo-400">{Math.round((selectedLayer.scaleX ?? 1) * 100) - 100}%</span>
+                                                <span className="text-[11px] font-black text-slate-600 uppercase tracking-widest">Rotação</span>
+                                                <span className="text-[11px] font-bold text-indigo-500">{selectedLayer.rotation ?? 0}°</span>
                                             </div>
-                                            <input type="range" min="-100" max="100" value={Math.round((selectedLayer.scaleX ?? 1) * 100) - 100}
-                                                title="Esticar largura" className="slider-track-dark"
-                                                onChange={e => updateLayer(selectedLayer.id, { scaleX: Math.max(0.1, (Number(e.target.value) + 100) / 100) })} />
+                                            <input type="range" min="-180" max="180" value={selectedLayer.rotation ?? 0}
+                                                title="Rotação" className="slider-track-dark"
+                                                onChange={e => updateLayer(selectedLayer.id, { rotation: Number(e.target.value) })} />
                                         </div>
-                                    </div>
-
-                                    {/* Actions */}
-                                    <div className="flex gap-2">
-                                        <button onClick={() => updateLayer(selectedLayer.id, { isMirrored: !selectedLayer.isMirrored })}
-                                            className="flex-1 py-2.5 rounded-xl bg-white border border-slate-200 text-slate-600 text-xs font-bold hover:bg-slate-100 transition-colors">
-                                            Espelhar
-                                        </button>
-                                        {selectedLayer.type === 'image' && (
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div className="flex flex-col gap-1.5">
+                                                <div className="flex justify-between">
+                                                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Altura ↕</span>
+                                                    <span className="text-[10px] font-bold text-indigo-400">{Math.round((selectedLayer.scaleY ?? 1) * 100) - 100}%</span>
+                                                </div>
+                                                <input type="range" min="-100" max="100" value={Math.round((selectedLayer.scaleY ?? 1) * 100) - 100}
+                                                    title="Esticar altura" className="slider-track-dark"
+                                                    onChange={e => updateLayer(selectedLayer.id, { scaleY: Math.max(0.1, (Number(e.target.value) + 100) / 100) })} />
+                                            </div>
+                                            <div className="flex flex-col gap-1.5">
+                                                <div className="flex justify-between">
+                                                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Largura ↔</span>
+                                                    <span className="text-[10px] font-bold text-indigo-400">{Math.round((selectedLayer.scaleX ?? 1) * 100) - 100}%</span>
+                                                </div>
+                                                <input type="range" min="-100" max="100" value={Math.round((selectedLayer.scaleX ?? 1) * 100) - 100}
+                                                    title="Esticar largura" className="slider-track-dark"
+                                                    onChange={e => updateLayer(selectedLayer.id, { scaleX: Math.max(0.1, (Number(e.target.value) + 100) / 100) })} />
+                                            </div>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <button onClick={() => updateLayer(selectedLayer.id, { isMirrored: !selectedLayer.isMirrored })}
+                                                className="flex-1 py-2.5 rounded-xl bg-white border border-slate-200 text-slate-600 text-xs font-bold hover:bg-slate-100 transition-colors">
+                                                Espelhar
+                                            </button>
                                             <button onClick={() => handleAiBackgroundRemoval(selectedLayer.id)} disabled={isBusy}
                                                 className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-colors ${selectedLayer.isBgClean ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'}`}>
                                                 {selectedLayer.isBgClean ? '✨ Fundo OK' : '🪄 Rem. Fundo'}
                                             </button>
-                                        )}
-                                        <button title="Remover camada" onClick={() => { deleteLayer(selectedLayer.id); handleSelectLayer(null); }}
-                                            className="py-2.5 px-3 rounded-xl bg-red-50 border border-red-200 text-red-500 text-xs font-bold hover:bg-red-100 transition-colors">
-                                            <Icons.Trash className="w-4 h-4" />
-                                        </button>
+                                            <button title="Remover camada" onClick={() => { deleteLayer(selectedLayer.id); handleSelectLayer(null); }}
+                                                className="py-2.5 px-4 flex items-center justify-center rounded-xl bg-red-100 border border-red-200 text-red-600 text-xs font-bold hover:bg-red-200 shadow-sm active:scale-95 transition-all">
+                                                <Icons.Trash className="w-4 h-4" />
+                                            </button>
+                                        </div>
                                     </div>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* ── 3. Personalizar Texto ── */}
-                        <div id="mobile-section-text" className="border-b border-slate-100">
-                            <div className="flex items-center gap-3 px-4 pt-5 pb-3">
-                                <div className="w-9 h-9 rounded-2xl flex items-center justify-center bg-linear-to-br from-rose-400 to-orange-400 shadow-sm shrink-0">
-                                    <Icons.Type className="w-4 h-4 text-white" />
-                                </div>
-                                <div>
-                                    <h3 className="font-black text-sm text-slate-800 leading-tight">Personalizar Texto</h3>
-                                    <p className="text-[11px] text-slate-400 font-medium">Escreva sua mensagem especial</p>
+                                )}
+                                <div className="px-4">
+                                    <ImageControls
+                                        layers={layers} expandedLayerId={selectedLayerId} onExpandLayer={handleSelectLayer}
+                                        onUpdateLayer={updateLayer} onAddImage={handleAddImage} onDeleteLayer={deleteLayer}
+                                        isBusy={isBusy} aiPrompt={aiPrompt} setAiPrompt={setAiPrompt} isAiLoading={isAiLoading}
+                                        handleAiGenerate={handleAiGenerate} handleAiBackgroundRemoval={handleAiBackgroundRemoval}
+                                        handleUpload={handleUpload} hideAddSection={false}
+                                    />
                                 </div>
                             </div>
-                            <div className="px-4 pb-3">
-                                <TextControls
-                                    layers={layers} expandedLayerId={selectedLayerId} onExpandLayer={handleSelectLayer}
-                                    onUpdateLayer={updateLayer} onAddText={handleAddText} onDeleteLayer={deleteLayer}
-                                    activeIconCat={activeIconCat} setActiveIconCat={setActiveIconCat}
-                                    ICON_CATEGORIES={ICON_CATEGORIES} onAddIcon={handleAddIcon} onNewTextChange={setDraftText}
-                                />
+                        )}
+
+                        {/* TAB: Ícones */}
+                        {mobileTab === 'icons' && (
+                            <div className="pt-5 pb-8 flex flex-col gap-6">
+                                {/* Lista de Ícones */}
+                                {layers.filter(l => l.type === 'icon').length > 0 && (
+                                    <div className="px-4 flex flex-col gap-2">
+                                        <p className="text-[10px] font-black tracking-[0.2em] text-slate-400 uppercase">Camadas de Ícones</p>
+                                        {layers.filter(l => l.type === 'icon').map(layer => (
+                                            <div
+                                                key={layer.id}
+                                                onClick={() => handleSelectLayer(layer.id === selectedLayerId ? null : layer.id)}
+                                                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl border transition-all cursor-pointer ${
+                                                    layer.id === selectedLayerId
+                                                        ? 'bg-amber-50 border-amber-300 shadow-sm'
+                                                        : 'bg-white border-slate-200 hover:border-slate-300'
+                                                }`}
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center shrink-0 border border-amber-200 overflow-hidden p-1.5">
+                                                        <img src={layer.content} alt="img" className="w-full h-full object-contain" />
+                                                    </div>
+                                                    <span className="text-sm font-bold text-slate-700">Ícone selecionado</span>
+                                                </div>
+                                                <button
+                                                    onClick={e => { e.stopPropagation(); deleteLayer(layer.id); if (selectedLayerId === layer.id) handleSelectLayer(null); }}
+                                                    className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center bg-red-50 text-red-500 border border-red-100 shadow-sm active:scale-95 hover:bg-red-100 hover:border-red-200 transition-all font-bold"
+                                                    title="Excluir camada"
+                                                >
+                                                    <Icons.Trash className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+
+                                {/* Ajustes do Ícone Selecionado */}
+                                {selectedLayer && selectedLayer.type === 'icon' && (
+                                    <div className="mx-4 rounded-2xl bg-amber-50 border border-amber-200 p-4 flex flex-col gap-4">
+                                        <div className="flex items-center gap-3">
+                                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                                            <img src={selectedLayer.content} alt="" className="w-9 h-9 rounded-xl object-contain bg-white border border-amber-200 p-1 shrink-0" />
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-[11px] font-black text-slate-700 uppercase tracking-widest leading-none">Ajustes</p>
+                                                <p className="text-[10px] text-amber-600 font-bold mt-0.5">Ícone</p>
+                                            </div>
+                                            <button title="Desselecionar" onClick={() => handleSelectLayer(null)}
+                                                className="w-8 h-8 rounded-full bg-amber-100 border border-amber-200 shadow-sm active:scale-95 hover:bg-red-100 hover:text-red-500 hover:border-red-200 transition-all flex items-center justify-center text-amber-600 font-bold">
+                                                <Icons.X className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                        <div className="h-px bg-amber-200" />
+                                        <div className="flex flex-col gap-1.5">
+                                            <div className="flex justify-between">
+                                                <span className="text-[11px] font-black text-slate-600 uppercase tracking-widest">Escala</span>
+                                                <span className="text-[11px] font-bold text-amber-600">{Math.round((selectedLayer.size - 1000) / 10)}%</span>
+                                            </div>
+                                            <input type="range" min="-100" max="100" value={(selectedLayer.size - 1000) / 10}
+                                                title="Escala" className="slider-track-dark"
+                                                onChange={e => updateLayer(selectedLayer.id, { size: (Number(e.target.value) * 10) + 1000 })} />
+                                        </div>
+                                        <div className="flex flex-col gap-1.5">
+                                            <div className="flex justify-between">
+                                                <span className="text-[11px] font-black text-slate-600 uppercase tracking-widest">Rotação</span>
+                                                <span className="text-[11px] font-bold text-amber-600">{selectedLayer.rotation ?? 0}°</span>
+                                            </div>
+                                            <input type="range" min="-180" max="180" value={selectedLayer.rotation ?? 0}
+                                                title="Rotação" className="slider-track-dark"
+                                                onChange={e => updateLayer(selectedLayer.id, { rotation: Number(e.target.value) })} />
+                                        </div>
+                                        
+                                        <div className="flex gap-2">
+                                            <button onClick={() => updateLayer(selectedLayer.id, { isMirrored: !selectedLayer.isMirrored })}
+                                                className="flex-1 py-2.5 rounded-xl bg-white border border-slate-200 text-slate-600 text-xs font-bold hover:bg-slate-100 transition-colors">
+                                                Espelhar
+                                            </button>
+                                            <button title="Remover camada" onClick={() => { deleteLayer(selectedLayer.id); handleSelectLayer(null); }}
+                                                className="py-2.5 px-4 flex items-center justify-center rounded-xl bg-red-100 border border-red-200 text-red-600 text-xs font-bold hover:bg-red-200 shadow-sm active:scale-95 transition-all">
+                                                <Icons.Trash className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* ── Icon Library ── */}
+                                <div className="px-4 flex flex-col gap-4">
+                                    <p className="text-[10px] font-black tracking-[0.2em] text-[#94a3b8] uppercase">Adicionar ícone</p>
+                                    <div className="flex gap-3 overflow-x-auto pb-1">
+                                        {Object.keys(ICON_CATEGORIES).map(cat => (
+                                            <button
+                                                key={cat}
+                                                onClick={() => setActiveIconCat(cat)}
+                                                className={`shrink-0 whitespace-nowrap px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider border transition-all ${
+                                                    activeIconCat === cat
+                                                        ? 'bg-[#0F172A] border-[#0F172A] text-white shadow-md'
+                                                        : 'bg-white border-[#e2e8f0] text-[#64748b]'
+                                                }`}
+                                            >
+                                                {cat}
+                                            </button>
+                                        ))}
+                                    </div>
+                                    <div className="grid grid-cols-5 gap-2">
+                                        {(ICON_CATEGORIES[activeIconCat] ?? []).map((url: string, idx: number) => (
+                                            <button
+                                                key={idx}
+                                                onClick={() => handleAddIcon(url)}
+                                                className="aspect-square bg-white border border-[#f1f5f9] rounded-xl p-2 shadow-sm hover:shadow-md hover:scale-105 transition-all flex items-center justify-center"
+                                            >
+                                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                                <img src={url} crossOrigin="anonymous" alt="icon" className="w-full h-full object-contain opacity-70 hover:opacity-100 transition-opacity" />
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
                             </div>
+                        )}
 
-                            {/* ── Inline text layer properties ── */}
-                            {selectedLayer && selectedLayer.type === 'text' && (
-                                <div className="mx-4 mb-5 rounded-2xl bg-slate-50 border border-slate-200 p-4 flex flex-col gap-4">
-                                    {/* Header */}
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-linear-to-br from-rose-400 to-orange-400 shrink-0">
-                                            <Icons.Type className="w-4 h-4 text-white" />
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-[11px] font-black text-slate-700 uppercase tracking-widest leading-none">Ajustes</p>
-                                            <p className="text-[10px] text-rose-500 font-bold mt-0.5 truncate">{selectedLayer.content}</p>
-                                        </div>
-                                        <button title="Desselecionar" onClick={() => handleSelectLayer(null)}
-                                            className="w-7 h-7 rounded-full bg-slate-200 hover:bg-red-100 hover:text-red-500 transition-all flex items-center justify-center text-slate-500">
-                                            <Icons.X className="w-3.5 h-3.5" />
-                                        </button>
-                                    </div>
+                        {/* TAB: Texto */}
+                        {activeMobileTab === 'text' && (
+                            <div className="px-4 pt-5 pb-8 flex flex-col gap-4">
+                                {/* ── Add text field ─────────────────────── */}
+                                <div className="flex gap-2">
+                                    <input
+                                        type="text"
+                                        placeholder="Escreva um texto..."
+                                        value={draftText}
+                                        onChange={e => setDraftText(e.target.value)}
+                                        onKeyDown={e => { if (e.key === 'Enter' && draftText.trim()) { handleAddText(draftText); } }}
+                                        className="flex-1 bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-bold text-slate-800 outline-none focus:border-rose-400 transition-colors placeholder:font-normal placeholder:text-slate-400"
+                                    />
+                                    <button
+                                        onClick={() => draftText.trim() && handleAddText(draftText)}
+                                        disabled={!draftText.trim()}
+                                        className="shrink-0 w-10 h-10 rounded-xl bg-linear-to-br from-rose-400 to-orange-400 text-white flex items-center justify-center shadow-md active:scale-95 transition-transform disabled:opacity-40"
+                                        title="Adicionar texto"
+                                    >
+                                        <Icons.Plus className="w-4 h-4" />
+                                    </button>
+                                </div>
 
-                                    <div className="h-px bg-slate-200" />
-
-                                    {/* Conteúdo */}
-                                    <div className="flex flex-col gap-1.5">
-                                        <span className="text-[11px] font-black text-slate-600 uppercase tracking-widest">Texto</span>
-                                        <input type="text" title="Conteúdo" placeholder="Digite o texto..."
-                                            value={selectedLayer.content}
-                                            onChange={e => updateLayer(selectedLayer.id, { content: e.target.value })}
-                                            className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-bold text-slate-800 outline-none focus:border-rose-400 transition-colors" />
-                                    </div>
-
-                                    {/* Tamanho */}
-                                    <div className="flex flex-col gap-1.5">
-                                        <div className="flex justify-between">
-                                            <span className="text-[11px] font-black text-slate-600 uppercase tracking-widest">Tamanho</span>
-                                            <span className="text-[11px] font-bold text-rose-500">{selectedLayer.size}%</span>
-                                        </div>
-                                        <input type="range" min="10" max="1000" value={selectedLayer.size}
-                                            title="Tamanho do texto" className="slider-track-dark"
-                                            onChange={e => updateLayer(selectedLayer.id, { size: Number(e.target.value) })} />
-                                    </div>
-
-                                    {/* Rotação */}
-                                    <div className="flex flex-col gap-1.5">
-                                        <div className="flex justify-between">
-                                            <span className="text-[11px] font-black text-slate-600 uppercase tracking-widest">Rotação</span>
-                                            <span className="text-[11px] font-bold text-rose-500">{selectedLayer.rotation ?? 0}°</span>
-                                        </div>
-                                        <input type="range" min="-180" max="180" value={selectedLayer.rotation ?? 0}
-                                            title="Rotação do texto" className="slider-track-dark"
-                                            onChange={e => updateLayer(selectedLayer.id, { rotation: Number(e.target.value) })} />
-                                    </div>
-
-                                    {/* Estilo */}
-                                    <div className="flex gap-2">
-                                        <button onClick={() => updateLayer(selectedLayer.id, { underline: !selectedLayer.underline })}
-                                            className={`flex-1 py-2.5 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1 ${selectedLayer.underline ? 'bg-rose-50 border-rose-300 text-rose-500' : 'bg-white border-slate-200 text-slate-500'}`}
-                                            title="Sublinhado"><Icons.Underline className="w-3.5 h-3.5" /> U</button>
-                                        <button onClick={() => updateLayer(selectedLayer.id, { italic: !selectedLayer.italic })}
-                                            className={`flex-1 py-2.5 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1 ${selectedLayer.italic ? 'bg-rose-50 border-rose-300 text-rose-500' : 'bg-white border-slate-200 text-slate-500'}`}
-                                            title="Itálico"><Icons.Italic className="w-3.5 h-3.5" /> I</button>
-                                        <button onClick={() => updateLayer(selectedLayer.id, { stroke: !selectedLayer.stroke })}
-                                            className={`flex-1 py-2.5 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1 ${selectedLayer.stroke ? 'bg-rose-50 border-rose-300 text-rose-500' : 'bg-white border-slate-200 text-slate-500'}`}
-                                            title="Contorno"><Icons.Bold className="w-3.5 h-3.5" /> B</button>
-                                        <button title="Remover camada" onClick={() => { deleteLayer(selectedLayer.id); handleSelectLayer(null); }}
-                                            className="py-2.5 px-3 rounded-xl bg-red-50 border border-red-200 text-red-500 hover:bg-red-100 transition-colors">
-                                            <Icons.Trash className="w-4 h-4" />
-                                        </button>
-                                    </div>
-
-                                    {/* Cor */}
+                                {/* ── Text layer list ─────────────────────── */}
+                                {layers.filter(l => l.type === 'text').length > 0 && (
                                     <div className="flex flex-col gap-2">
-                                        <span className="text-[11px] font-black text-slate-600 uppercase tracking-widest">Cor</span>
-                                        <div className="grid grid-cols-8 gap-2">
-                                            {EDITOR_COLORS.slice(0, 16).map((c) => (
-                                                <button key={c.name}
-                                                    onClick={() => updateLayer(selectedLayer.id, { color: c.valor })}
-                                                    className={`w-8 h-8 rounded-full border-2 transition-all ${selectedLayer.color === c.valor ? 'border-rose-400 scale-110 shadow-md' : 'border-slate-200 hover:scale-105'}`}
-                                                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                                    style={(c as any).style || { backgroundColor: c.valor }}
-                                                    title={c.name}
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Camadas de texto</p>
+                                        {layers.filter(l => l.type === 'text').map(layer => (
+                                            <div
+                                                key={layer.id}
+                                                onClick={() => handleSelectLayer(layer.id === selectedLayerId ? null : layer.id)}
+                                                className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-xl border transition-all cursor-pointer ${
+                                                    layer.id === selectedLayerId
+                                                        ? 'bg-rose-50 border-rose-300 shadow-sm'
+                                                        : 'bg-white border-slate-200 hover:border-slate-300'
+                                                }`}
+                                            >
+                                                <div className="w-7 h-7 rounded-lg bg-linear-to-br from-rose-400 to-orange-400 flex items-center justify-center shrink-0">
+                                                    <Icons.Type className="w-3.5 h-3.5 text-white" />
+                                                </div>
+                                                <input
+                                                    type="text"
+                                                    value={layer.content}
+                                                    aria-label="Editar texto da camada"
+                                                    onClick={e => e.stopPropagation()}
+                                                    onChange={e => setLayers(prev => prev.map(l => l.id === layer.id ? { ...l, content: e.target.value } : l))}
+                                                    className="flex-1 min-w-0 bg-transparent text-sm font-bold text-slate-700 outline-none focus:bg-white focus:px-1.5 focus:rounded-lg transition-all"
                                                 />
-                                            ))}
+                                                <button
+                                                    onClick={e => { e.stopPropagation(); setLayers(prev => prev.filter(l => l.id !== layer.id)); if (selectedLayerId === layer.id) handleSelectLayer(null); }}
+                                                    className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center bg-red-50 text-red-500 border border-red-100 shadow-sm active:scale-95 hover:bg-red-100 hover:border-red-200 transition-all font-bold"
+                                                    title="Excluir camada"
+                                                >
+                                                    <Icons.Trash className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+
+                                {/* ── Adjustment panel ─────────────────────── */}
+                                {selectedLayer && selectedLayer.type === 'text' && (
+                                    <div className="rounded-2xl bg-rose-50 border border-rose-200 p-4 flex flex-col gap-4">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-8 h-8 rounded-xl flex items-center justify-center bg-linear-to-br from-rose-400 to-orange-400 shrink-0">
+                                                <Icons.Type className="w-3.5 h-3.5 text-white" />
+                                            </div>
+                                            <p className="flex-1 text-[11px] font-black text-slate-700 uppercase tracking-widest">Ajustes</p>
+                                            <button title="Fechar" onClick={() => handleSelectLayer(null)}
+                                                className="w-8 h-8 rounded-full bg-rose-100 border border-rose-200 shadow-sm active:scale-95 hover:bg-red-100 hover:text-red-500 hover:border-red-200 transition-all flex items-center justify-center text-rose-600 font-bold">
+                                                <Icons.X className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                        <div className="h-px bg-rose-200" />
+
+                                        {/* Content */}
+                                        <div className="flex flex-col gap-1.5">
+                                            <span className="text-[11px] font-black text-slate-600 uppercase tracking-widest">Texto</span>
+                                            <input type="text" placeholder="Conteúdo..."
+                                                value={selectedLayer.content}
+                                                onChange={e => updateLayer(selectedLayer.id, { content: e.target.value })}
+                                                className="w-full bg-white border border-rose-200 rounded-xl px-3 py-2.5 text-sm font-bold text-slate-800 outline-none focus:border-rose-400 transition-colors" />
+                                        </div>
+
+                                        {/* Size */}
+                                        <div className="flex flex-col gap-1.5">
+                                            <div className="flex justify-between">
+                                                <span className="text-[11px] font-black text-slate-600 uppercase tracking-widest">Tamanho</span>
+                                                <span className="text-[11px] font-bold text-rose-500">{selectedLayer.size}%</span>
+                                            </div>
+                                            <input type="range" min="10" max="1000" value={selectedLayer.size}
+                                                title="Tamanho" className="slider-track-dark"
+                                                onChange={e => updateLayer(selectedLayer.id, { size: Number(e.target.value) })} />
+                                        </div>
+
+                                        {/* Rotation */}
+                                        <div className="flex flex-col gap-1.5">
+                                            <div className="flex justify-between">
+                                                <span className="text-[11px] font-black text-slate-600 uppercase tracking-widest">Rotação</span>
+                                                <span className="text-[11px] font-bold text-rose-500">{selectedLayer.rotation ?? 0}°</span>
+                                            </div>
+                                            <input type="range" min="-180" max="180" value={selectedLayer.rotation ?? 0}
+                                                title="Rotação" className="slider-track-dark"
+                                                onChange={e => updateLayer(selectedLayer.id, { rotation: Number(e.target.value) })} />
+                                        </div>
+
+                                        {/* Style buttons */}
+                                        <div className="flex gap-2">
+                                            <button onClick={() => updateLayer(selectedLayer.id, { underline: !selectedLayer.underline })}
+                                                className={`flex-1 py-2.5 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1 ${selectedLayer.underline ? 'bg-rose-100 border-rose-300 text-rose-500' : 'bg-white border-slate-200 text-slate-500'}`}
+                                                title="Sublinhado"><Icons.Underline className="w-3.5 h-3.5" /> U</button>
+                                            <button onClick={() => updateLayer(selectedLayer.id, { italic: !selectedLayer.italic })}
+                                                className={`flex-1 py-2.5 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1 ${selectedLayer.italic ? 'bg-rose-100 border-rose-300 text-rose-500' : 'bg-white border-slate-200 text-slate-500'}`}
+                                                title="Itálico"><Icons.Italic className="w-3.5 h-3.5" /> I</button>
+                                            <button onClick={() => updateLayer(selectedLayer.id, { stroke: !selectedLayer.stroke })}
+                                                className={`flex-1 py-2.5 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1 ${selectedLayer.stroke ? 'bg-rose-100 border-rose-300 text-rose-500' : 'bg-white border-slate-200 text-slate-500'}`}
+                                                title="Contorno"><Icons.Bold className="w-3.5 h-3.5" /> B</button>
+                                            <button title="Remover" onClick={() => { deleteLayer(selectedLayer.id); handleSelectLayer(null); }}
+                                                className="py-2.5 px-4 flex items-center justify-center rounded-xl bg-red-100 border border-red-200 text-red-600 text-xs font-bold hover:bg-red-200 shadow-sm active:scale-95 transition-all">
+                                                <Icons.Trash className="w-4 h-4" />
+                                            </button>
+                                        </div>
+
+                                        {/* Color */}
+                                        <div className="flex flex-col gap-2">
+                                            <span className="text-[11px] font-black text-slate-600 uppercase tracking-widest">Cor</span>
+                                            <div className="grid grid-cols-8 gap-2">
+                                                {EDITOR_COLORS.slice(0, 16).map((c) => (
+                                                    <button key={c.name}
+                                                        onClick={() => updateLayer(selectedLayer.id, { color: c.valor })}
+                                                        className={`w-8 h-8 rounded-full border-2 transition-all ${selectedLayer.color === c.valor ? 'border-rose-400 scale-110 shadow-md' : 'border-slate-200 hover:scale-105'}`}
+                                                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                                        style={(c as any).style || { backgroundColor: c.valor }}
+                                                        title={c.name}
+                                                    />
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        {/* Font */}
+                                        <div className="flex flex-col gap-2">
+                                            <span className="text-[11px] font-black text-slate-600 uppercase tracking-widest">Fonte</span>
+                                            <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto">
+                                                {FONTS.map((f) => (
+                                                    <button key={f.name}
+                                                        onClick={() => updateLayer(selectedLayer.id, { font: f.family })}
+                                                        style={{ fontFamily: f.family }}
+                                                        className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all ${selectedLayer.font === f.family ? 'bg-rose-50 border-rose-300 text-rose-600' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-100'}`}
+                                                    >{f.name}</button>
+                                                ))}
+                                            </div>
                                         </div>
                                     </div>
+                                )}
 
-                                    {/* Fonte */}
-                                    <div className="flex flex-col gap-2">
-                                        <span className="text-[11px] font-black text-slate-600 uppercase tracking-widest">Fonte</span>
-                                        <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto">
-                                            {FONTS.map((f) => (
-                                                <button key={f.name}
-                                                    onClick={() => updateLayer(selectedLayer.id, { font: f.family })}
-                                                    style={{ fontFamily: f.family }}
-                                                    className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all ${selectedLayer.font === f.family ? 'bg-rose-50 border-rose-300 text-rose-600' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-100'}`}
-                                                >{f.name}</button>
-                                            ))}
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* ── 4. Finalizar & Comprar ── */}
-                        <div id="mobile-section-cta" className="px-4 py-6">
-                            <div className="rounded-3xl bg-linear-to-br from-slate-50 to-white border border-slate-200/60 p-5 text-center shadow-sm">
-                                <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-1">Seu design está pronto!</p>
-                                <p className="font-black text-2xl text-slate-900 mb-1">
-                                    R$ {SKUS[sku]?.price?.toFixed(2).replace('.', ',') ?? '89,90'}
-                                </p>
-                                <p className="text-[11px] text-slate-400 mb-5">Frete grátis acima de R$&nbsp;199</p>
-                                <button
-                                    onClick={handleAddToCart}
-                                    disabled={isBusy}
-                                    className="w-full btn-gradient text-white py-4 rounded-2xl font-black uppercase tracking-wider text-sm flex items-center justify-center gap-2 shadow-lg active:scale-[0.98] transition-transform disabled:opacity-50"
-                                >
-                                    <Icons.ShoppingBag className="w-5 h-5" />
-                                    Adicionar ao Carrinho
-                                </button>
+                                {/* ── Empty state ────────────────────────── */}
+                                {layers.filter(l => l.type === 'text').length === 0 && (
+                                    <p className="text-center text-[11px] text-slate-400 font-bold py-4">
+                                        Adicione um texto acima para começar
+                                    </p>
+                                )}
                             </div>
-                        </div>
+                        )}
+
+                        {/* TAB: Comprar */}
+                        {activeMobileTab === 'summary' && (
+                            <div className="px-4 py-6">
+                                <div className="rounded-3xl bg-linear-to-br from-slate-50 to-white border border-slate-200/60 p-5 text-center shadow-sm">
+                                    <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-1">Seu design está pronto!</p>
+                                    <p className="font-black text-2xl text-slate-900 mb-1">
+                                        R$ {SKUS[sku]?.price?.toFixed(2).replace('.', ',') ?? '89,90'}
+                                    </p>
+                                    <p className="text-[11px] text-slate-400 mb-5">Frete grátis acima de R$&nbsp;199</p>
+                                    <button
+                                        onClick={handleAddToCart}
+                                        disabled={isBusy}
+                                        className="w-full btn-gradient text-white py-4 rounded-2xl font-black uppercase tracking-wider text-sm flex items-center justify-center gap-2 shadow-lg active:scale-[0.98] transition-transform disabled:opacity-50"
+                                    >
+                                        <Icons.ShoppingBag className="w-5 h-5" />
+                                        Adicionar ao Carrinho
+                                    </button>
+                                </div>
+                            </div>
+                        )}
 
                         {/* Safe area */}
-                        <div className="h-20" />
+                        <div className="h-6" />
                     </div>
                 </div>
                 );

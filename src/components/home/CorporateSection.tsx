@@ -51,9 +51,16 @@ export default function CorporateSection() {
               ))}
             </ul>
 
-            <Link href="/sobre" className="inline-block bg-white text-black px-10 py-5 rounded-full font-black text-lg hover:bg-brand-cyan transition-colors">
-              SOLICITAR ORÇAMENTO →
-            </Link>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              whileInView={{ opacity: 1, scale: 1 }}
+              viewport={{ once: true }}
+              className="text-center mt-12 md:mt-16"
+            >
+              <Link href="/sobre" className="inline-block bg-white text-black px-8 py-4 rounded-full font-black text-lg hover:bg-brand-cyan transition-colors shadow-2xl">
+                CONHEÇA NOSSOS PROJETOS
+              </Link>
+            </motion.div>
           </motion.div>
 
           <motion.div

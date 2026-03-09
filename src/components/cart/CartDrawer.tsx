@@ -82,101 +82,112 @@ export function CartDrawer() {
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
             transition={{ type: "spring", damping: 25, stiffness: 200 }}
-            className="fixed right-0 top-0 bottom-0 w-full max-w-lg bg-white/90 dark:bg-slate-900/95 backdrop-blur-3xl z-[1000] flex flex-col shadow-2xl transition-all border-l border-white/50 dark:border-slate-800"
+            className="fixed right-0 top-0 bottom-0 w-full max-w-lg bg-white/95 dark:bg-slate-900/98 backdrop-blur-3xl z-[1000] flex flex-col shadow-2xl border-l border-white/50 dark:border-slate-800"
+            style={{ height: '100dvh' }}
           >
             {/* Header */}
-            <div className="px-8 py-6 flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-linear-to-br from-pastelPink to-pastelLavender flex items-center justify-center text-accentPink shadow-sm">
-                  <ShoppingBag className="w-6 h-6" />
+            <div className="px-5 py-4 flex items-center justify-between border-b border-slate-100 dark:border-slate-800 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-linear-to-br from-pastelPink to-pastelLavender flex items-center justify-center text-accentPink shadow-sm">
+                  <ShoppingBag className="w-4 h-4" />
                 </div>
                 <div>
-                  <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100 tracking-tight">Sua Sacola</h2>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">({items.length} {items.length === 1 ? 'item' : 'itens'})</span>
+                  <h2 className="text-base font-bold text-slate-800 dark:text-slate-100 tracking-tight">Sua Sacola</h2>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{items.length} {items.length === 1 ? 'item' : 'itens'}</span>
                 </div>
               </div>
               <button 
                 onClick={closeCart}
-                className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-pastelPink/20 dark:hover:bg-slate-800 smooth-transition text-slate-400"
+                className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-400"
+                title="Fechar"
               >
-                <X className="w-6 h-6" />
+                <X className="w-5 h-5" />
               </button>
             </div>
 
             {/* List */}
-            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6">
+            <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-3 space-y-3" style={{ WebkitOverflowScrolling: 'touch' }}>
                 {items.length === 0 ? (
-                    <div className="h-full flex flex-col items-center justify-center text-center space-y-4 opacity-50">
-                        <ShoppingBag size={48} className="text-gray-300" />
-                        <p className="text-lg font-medium text-gray-400">Sua sacola está vazia</p>
-                        <button onClick={closeCart} className="text-accentPink font-bold hover:underline">
-                        Começar a comprar
+                    <div className="h-full flex flex-col items-center justify-center text-center space-y-4 opacity-50 py-16">
+                        <ShoppingBag size={40} className="text-gray-300" />
+                        <p className="text-base font-medium text-gray-400">Sua sacola está vazia</p>
+                        <button onClick={closeCart} className="text-accentPink font-bold hover:underline text-sm">
+                            Começar a comprar
                         </button>
                     </div>
                 ) : (
                     items.map((item) => (
-                        <div key={item.id} className="pastel-gradient-border rounded-4xl p-6 shadow-xl smooth-transition hover:shadow-2xl">
-                            <div className="flex gap-8">
-                                <div className="relative w-24 aspect-9/16 shrink-0">
-                                    <div className="relative w-full h-full rounded-lg overflow-hidden bg-white dark:bg-slate-800 border border-white/20 shadow-md">
+                        <div key={item.id} className="bg-white dark:bg-slate-800 rounded-2xl p-4 shadow-sm border border-slate-100 dark:border-slate-700">
+                            <div className="flex gap-3">
+                                {/* Thumbnail */}
+                                <div className="relative w-16 shrink-0" style={{ aspectRatio: '9/16' }}>
+                                    <div className="relative w-full h-full rounded-md overflow-hidden bg-slate-50 dark:bg-slate-700">
                                         {item.thumbnail ? (
                                             <img 
                                                 alt={item.name} 
-                                                className="w-full h-full object-cover scale-105 pastel-image-filter" 
+                                                className="w-full h-full object-cover" 
                                                 src={item.thumbnail} 
                                             />
                                         ) : (
-                                            <div className="w-full h-full bg-slate-100 animate-pulse" />
+                                            <div className="w-full h-full bg-slate-200 animate-pulse" />
                                         )}
-
                                     </div>
                                 </div>
-                                <div className="flex-1 flex flex-col justify-between py-2">
-                                    <div>
-                                        <h3 className="text-xl font-bold text-slate-800 dark:text-white leading-tight line-clamp-1">{item.name}</h3>
-                                        <p className="text-slate-400 font-semibold text-xs mt-1">
-                                            {item.customization?.text ? `"${item.customization.text}"` : 'Sem personalização'}
-                                        </p>
-                                        
-                                        {/* Admin Calibration Button */}
-                                        {isAdmin && (
-                                            <button 
-                                                onClick={() => setCalibratingItem(item)}
-                                                className="mt-2 text-[10px] uppercase font-bold text-accentPurple hover:text-accentPink flex items-center gap-1"
-                                            >
-                                                <Settings size={12} />
-                                                Calibrar
-                                            </button>
-                                        )}
+
+                                {/* Info */}
+                                <div className="flex-1 flex flex-col gap-2 min-w-0">
+                                    <div className="flex items-start justify-between gap-2">
+                                        <div className="min-w-0">
+                                            <h3 className="text-sm font-bold text-slate-800 dark:text-white leading-tight line-clamp-2">{item.name}</h3>
+                                            <p className="text-slate-400 font-medium text-[11px] mt-0.5 line-clamp-1">
+                                                {item.customization?.text ? `"${item.customization.text}"` : 'Personalizado'}
+                                            </p>
+                                        </div>
+                                        {/* Delete button */}
+                                        <button 
+                                            onClick={() => removeItem(item.id)}
+                                            className="shrink-0 w-8 h-8 flex items-center justify-center rounded-xl text-slate-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                                            title="Remover item"
+                                        >
+                                            <X className="w-4 h-4" />
+                                        </button>
                                     </div>
-                                    
-                                    <div className="space-y-4">
-                                        <div className="text-2xl font-bold text-slate-800 dark:text-slate-100">
+
+                                    <div className="flex items-center justify-between">
+                                        <div className="text-base font-bold text-slate-800 dark:text-slate-100">
                                             R$ {item.price.toFixed(2)}
                                         </div>
-                                        <div className="flex items-center w-fit bg-pastelSky/30 dark:bg-slate-800/50 rounded-2xl p-1 border border-white/40 dark:border-slate-700/50">
+                                        {/* Quantity controls */}
+                                        <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-700/50 rounded-xl p-1">
                                             <button 
                                                 onClick={() => updateQuantity(item.id, item.quantity - 1)}
                                                 disabled={item.quantity <= 1}
-                                                className="w-8 h-8 flex items-center justify-center rounded-lg bg-white/90 dark:bg-slate-700 text-slate-500 hover:text-accentPink smooth-transition shadow-sm disabled:opacity-50"
+                                                className="w-7 h-7 flex items-center justify-center rounded-lg bg-white dark:bg-slate-600 text-slate-500 hover:text-accentPink transition-colors shadow-sm disabled:opacity-40"
+                                                title="Diminuir quantidade"
                                             >
-                                                <Minus size={14} />
+                                                <Minus size={12} />
                                             </button>
-                                            <span className="px-4 font-bold text-slate-700 dark:text-slate-200 text-sm">{item.quantity}</span>
+                                            <span className="w-6 text-center font-bold text-slate-700 dark:text-slate-200 text-sm">{item.quantity}</span>
                                             <button 
                                                 onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                                                className="w-8 h-8 flex items-center justify-center rounded-lg bg-white/90 dark:bg-slate-700 text-slate-500 hover:text-accentPink smooth-transition shadow-sm"
+                                                className="w-7 h-7 flex items-center justify-center rounded-lg bg-white dark:bg-slate-600 text-slate-500 hover:text-accentPink transition-colors shadow-sm"
+                                                title="Aumentar quantidade"
                                             >
-                                                <Plus size={14} />
+                                                <Plus size={12} />
                                             </button>
                                         </div>
-                                        <button 
-                                            onClick={() => removeItem(item.id)}
-                                            className="text-xs text-slate-400 hover:text-red-400 font-bold uppercase tracking-wide"
-                                        >
-                                            Remover
-                                        </button>
                                     </div>
+
+                                    {/* Admin Calibration Button — desktop only */}
+                                    {isAdmin && (
+                                        <button 
+                                            onClick={() => setCalibratingItem(item)}
+                                            className="hidden md:flex text-[10px] uppercase font-bold text-accentPurple hover:text-accentPink items-center gap-1 w-fit"
+                                        >
+                                            <Settings size={10} />
+                                            Calibrar
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                         </div>

@@ -16,7 +16,7 @@ import {
   Crown
 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
-import Header from "@/components/layout/Header";
+
 import { BackgroundEffects } from "@/components/ui/background-effects";
 import { useTheme } from "next-themes";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
@@ -200,7 +200,6 @@ export default function AccountPage() {
 
   return (
     <div className={`min-h-screen pt-24 pb-16 px-4 relative overflow-hidden transition-colors duration-500`}>
-      <Header />
       <BackgroundEffects />
 
       <div className="max-w-7xl mx-auto relative z-10">
