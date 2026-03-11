@@ -10,12 +10,6 @@ interface ImageControlsProps {
     onUpdateLayer: (id: string, updates: Partial<EditorLayer>) => void;
     onAddImage: (img: string) => void;
     onDeleteLayer: (id: string) => void;
-    isBusy: boolean;
-    aiPrompt: string;
-    setAiPrompt: (p: string) => void;
-    isAiLoading: boolean;
-    handleAiGenerate: () => void;
-    handleAiBackgroundRemoval: (id: string) => void;
     handleUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
     hideAddSection?: boolean;
     onlyShowSelected?: boolean;
@@ -27,12 +21,6 @@ export const ImageControls: React.FC<ImageControlsProps> = ({
     onExpandLayer,
     onUpdateLayer,
     onDeleteLayer,
-    isBusy,
-    aiPrompt,
-    setAiPrompt,
-    isAiLoading,
-    handleAiGenerate,
-    handleAiBackgroundRemoval,
     handleUpload,
     hideAddSection = false,
 }) => {
@@ -46,57 +34,46 @@ export const ImageControls: React.FC<ImageControlsProps> = ({
             {/* PANEL 1 — GALLERY                           */}
             {/* ─────────────────────────────────────────── */}
             <div className="w-full flex flex-col gap-5">
-                {/* UPLOAD */}
+                {/* UPLOAD SECTION — Design 2026 (Refined) */}
                 {!hideAddSection && (
-                    <section className="flex flex-col gap-2">
-                        <p className="section-label">Importar Imagem</p>
-                        <label className="upload-zone group cursor-pointer">
-                            <div className="upload-icon">
-                                <Icons.Upload className="w-5 h-5" />
+                    <section className="flex flex-col gap-3">
+                        <p className="section-label-dark">Importar Design</p>
+                        <label className="group relative flex flex-col items-center justify-center w-full min-h-[160px] cursor-pointer overflow-hidden rounded-3xl border-2 border-dashed border-slate-200 bg-white shadow-xs transition-all duration-500 hover:border-solid hover:border-[#FF3E00]/50 hover:shadow-2xl hover:shadow-[#FF3E00]/10 hover:-translate-y-1">
+                            {/* Animated Background Gradient */}
+                            <div className="absolute inset-0 bg-radial-at-tr from-[#FF3E00]/5 via-transparent to-rose-50/40 opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
+                            
+                            <div className="relative z-10 flex flex-col items-center gap-4">
+                                {/* Elevated Icon Container */}
+                                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white shadow-lg border border-slate-100 group-hover:shadow-[#FF3E00]/20 group-hover:scale-110 transition-all duration-500">
+                                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-linear-to-br from-[#FF3E00] to-[#E63700] shadow-inner">
+                                        <Icons.Upload className="h-5 w-5 text-white" />
+                                    </div>
+                                </div>
+                                
+                                <div className="text-center px-4">
+                                    <h4 className="text-xs font-black uppercase tracking-[0.15em] text-slate-800 group-hover:text-[#FF3E00] transition-colors">
+                                        Carregar Imagem
+                                    </h4>
+                                    <p className="mt-1.5 text-[10px] font-bold text-slate-400 leading-relaxed">
+                                        Arraste o arquivo ou <span className="text-[#FF3E00] underline decoration-[#FF3E00]/20 underline-offset-4">clique aqui</span>
+                                        <br />
+                                        <span className="opacity-70">Suporta apenas JPG, PNG ou Colar (Ctrl+V)</span>
+                                    </p>
+                                </div>
                             </div>
-                            <span className="upload-text">Arraste ou clique aqui</span>
-                            <input type="file" className="hidden" accept="image/*" onChange={handleUpload} />
+
+                            <input type="file" className="hidden" aria-label="Carregar Imagem" accept="image/*" onChange={handleUpload} />
+                            
+                            {/* Design 2026: Animated corner borders */}
+                            <div className="absolute top-0 left-0 w-8 h-8 border-t-2 border-l-2 border-transparent group-hover:border-[#FF3E00] transition-all duration-500 rounded-tl-3xl" />
+                            <div className="absolute top-0 right-0 w-8 h-8 border-t-2 border-r-2 border-transparent group-hover:border-[#FF3E00] transition-all duration-500 rounded-tr-3xl" />
+                            <div className="absolute bottom-0 left-0 w-8 h-8 border-b-2 border-l-2 border-transparent group-hover:border-[#FF3E00] transition-all duration-500 rounded-bl-3xl" />
+                            <div className="absolute bottom-0 right-0 w-8 h-8 border-b-2 border-r-2 border-transparent group-hover:border-[#FF3E00] transition-all duration-500 rounded-br-3xl" />
                         </label>
                     </section>
                 )}
 
-                {/* AI GENERATOR */}
-                {!hideAddSection && (
-                    <section className="flex flex-col gap-2">
-                        <p className="section-label">Criação Instantânea</p>
-                        <div className="ai-generator-card relative rounded-md border border-slate-200/60 bg-slate-50/50 p-3 flex flex-col gap-2">
-                            <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-widest flex items-center gap-1.5 mb-1">
-                                <Icons.Sparkles className="w-3.5 h-3.5 text-indigo-400" />
-                                Gerar com IA
-                            </p>
 
-                            <textarea
-                                className="w-full bg-white border border-slate-200 rounded-sm p-3 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-300 focus:border-indigo-300 resize-none h-16 text-slate-700 transition-all placeholder:text-slate-400 shadow-sm"
-                                value={aiPrompt}
-                                onChange={(e) => setAiPrompt(e.target.value)}
-                                placeholder="Ex: Um astronauta de grafite pilotando um skate voador..."
-                            />
-
-                            <button
-                                onClick={handleAiGenerate}
-                                disabled={isAiLoading || !aiPrompt.trim()}
-                                className="ai-generate-btn w-full flex items-center justify-center gap-2 rounded-sm bg-slate-900 text-white px-4 py-2 text-[11px] font-medium hover:bg-slate-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
-                            >
-                                {isAiLoading ? (
-                                    <>
-                                        <span className="animate-spin h-3.5 w-3.5 border border-white/30 border-t-white rounded-full" />
-                                        Processando...
-                                    </>
-                                ) : (
-                                    <>
-                                        <Icons.Zap className="w-3.5 h-3.5" />
-                                        Gerar Imagem
-                                    </>
-                                )}
-                            </button>
-                        </div>
-                    </section>
-                )}
 
                 {/* LAYERS LIST — Photoshop style */}
                 {imageLayers.length > 0 && (
@@ -125,8 +102,8 @@ export const ImageControls: React.FC<ImageControlsProps> = ({
                                             }}
                                             className={`flex w-full items-center gap-2 px-2 py-2 rounded-lg border transition-all cursor-pointer ${
                                                 isSelected
-                                                    ? 'bg-indigo-50 border-indigo-300 shadow-sm'
-                                                    : 'bg-white/60 border-slate-200/60 hover:border-indigo-200 hover:bg-white/90'
+                                                    ? 'bg-[#FF3E00]/5 border-[#FF3E00]/30 shadow-sm'
+                                                    : 'bg-white/60 border-slate-200/60 hover:border-[#FF3E00]/20 hover:bg-white/90'
                                             }`}
                                         >
                                             {/* Thumbnail */}
@@ -154,7 +131,7 @@ export const ImageControls: React.FC<ImageControlsProps> = ({
                                                     }}
                                                     className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all ${
                                                         isSelected 
-                                                            ? 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200' 
+                                                            ? 'bg-[#FF3E00]/10 text-[#FF3E00] hover:bg-[#FF3E00]/20' 
                                                             : 'text-slate-400 group-hover:text-slate-700 hover:bg-slate-200'
                                                     }`}
                                                     title={isSelected ? "Fechar ajustes" : "Abrir ajustes"}
@@ -200,7 +177,7 @@ export const ImageControls: React.FC<ImageControlsProps> = ({
                         </div>
                         <div className="flex-1 min-w-0">
                             <p className="text-[12px] font-black text-slate-800 uppercase tracking-widest leading-none">Propriedades</p>
-                            <p className="text-[11px] text-indigo-500 font-bold mt-1 bg-indigo-50 inline-block px-2 py-0.5 rounded-full">
+                            <p className="text-[11px] text-[#FF3E00] font-bold mt-1 bg-[#FF3E00]/5 inline-block px-2 py-0.5 rounded-full">
                                 {selectedLayer?.type === 'icon' ? 'Ícone Selecionado' : 'Imagem Selecionada'}
                             </p>
                         </div>
@@ -219,8 +196,8 @@ export const ImageControls: React.FC<ImageControlsProps> = ({
                     {/* SIZE */}
                     <div className="flex flex-col gap-3">
                         <div className="flex justify-between">
-                            <span className="section-label mb-0">Tamanho</span>
-                            <span className="text-[11px] font-bold text-indigo-500">{Math.round((selectedLayer.size - 1000) / 10)}%</span>
+                            <span className="section-label mb-0!">Tamanho</span>
+                            <span className="text-[11px] font-bold text-[#FF3E00]">{Math.round((selectedLayer.size - 1000) / 10)}%</span>
                         </div>
                         <input
                             type="range" min="-100" max="100"
@@ -234,8 +211,8 @@ export const ImageControls: React.FC<ImageControlsProps> = ({
                     {/* ROTATION */}
                     <div className="flex flex-col gap-3">
                         <div className="flex items-center justify-between">
-                            <p className="section-label mb-0 text-slate-600">Rotação</p>
-                            <span className="text-[11px] font-bold text-indigo-500">{selectedLayer.rotation ?? 0}°</span>
+                            <p className="section-label mb-0! text-slate-600">Rotação</p>
+                            <span className="text-[11px] font-bold text-[#FF3E00]">{selectedLayer.rotation ?? 0}°</span>
                         </div>
                         <input
                             type="range" min="-180" max="180"
@@ -249,8 +226,8 @@ export const ImageControls: React.FC<ImageControlsProps> = ({
                     {/* OPACITY */}
                     <div className="flex flex-col gap-3">
                         <div className="flex items-center justify-between">
-                            <p className="section-label mb-0 text-slate-600">Opacidade</p>
-                            <span className="text-[11px] font-bold text-indigo-500">{Math.round((selectedLayer.opacity ?? 1) * 100)}%</span>
+                            <p className="section-label mb-0! text-slate-600">Opacidade</p>
+                            <span className="text-[11px] font-bold text-[#FF3E00]">{Math.round((selectedLayer.opacity ?? 1) * 100)}%</span>
                         </div>
                         <input
                             type="range" min="0" max="100"
@@ -263,24 +240,7 @@ export const ImageControls: React.FC<ImageControlsProps> = ({
 
                     {/* ACTIONS */}
                     <div className="flex flex-col gap-2 mt-2">
-                        {/* BG REMOVAL */}
-                        {selectedLayer.type === 'image' && (
-                            <button
-                                onClick={() => handleAiBackgroundRemoval(selectedLayer.id)}
-                                disabled={isBusy}
-                                className={`w-full py-2.5 px-4 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all ${
-                                    selectedLayer.isBgClean 
-                                    ? 'bg-emerald-50 text-emerald-600 border border-emerald-200 cursor-default' 
-                                    : 'bg-rose-50 text-rose-500 border border-rose-100 hover:bg-rose-100/80 hover:border-rose-200 cursor-pointer shadow-sm'
-                                }`}
-                            >
-                                {selectedLayer.isBgClean ? (
-                                    <><span>✨</span> Fundo Removido</>
-                                ) : (
-                                    <>🪄 Remover Fundo</>
-                                )}
-                            </button>
-                        )}
+
                         
                         <div className="grid grid-cols-2 gap-2">
                             <button
