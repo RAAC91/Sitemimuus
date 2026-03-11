@@ -58,6 +58,17 @@ export const BottlePreview: React.FC<BottlePreviewProps> = ({
     const [rotatingLayerId, setRotatingLayerId] = useState<string | null>(null);
     const [isInspectMode, setIsInspectMode] = useState(false);
 
+    // --- DEBUG HUD STATE ---
+    const [showDebug, setShowDebug] = useState(false);
+    const [debugMaskColor, setDebugMaskColor] = useState('rgba(255, 0, 0, 0.4)');
+    
+    const handleLogPositions = () => {
+        const logData = layers.map(l => `ID: ${l.id} | Type: ${l.type} | X: ${l.x.toFixed(2)}% | Y: ${l.y.toFixed(2)}% | Rot: ${l.rotation}° | Scale: ${l.size}%`);
+        const message = `--- LAYER POSITIONS ---\n` + logData.join('\n');
+        console.log(message);
+        alert('Posições atuais copiadas para o Console!\n\n' + message);
+    };
+
     const isZoomed = (zoomProp || zoomLevel) > 1.1;
 
     const handleContainerMouseDown = (e: React.MouseEvent) => {
@@ -231,6 +242,44 @@ export const BottlePreview: React.FC<BottlePreviewProps> = ({
 
     return (
         <div className="relative h-full flex flex-col">
+            {/* DEBUG HUD TOGGLE */}
+            {!hideUI && (
+                <button 
+                    onClick={() => setShowDebug(!showDebug)}
+                    className="absolute top-4 right-4 z-[9999] bg-black/50 hover:bg-black text-white px-3 py-1 rounded-full text-xs font-bold backdrop-blur-sm transition-colors"
+                >
+                    {showDebug ? 'Ocultar Debug' : '🛠 Debug Matriz'}
+                </button>
+            )}
+
+            {/* DEBUG HUD PANEL */}
+            {showDebug && !hideUI && (
+                <div className="absolute top-14 right-4 z-[9999] bg-white/95 backdrop-blur-md p-4 rounded-xl shadow-2xl border border-gray-200 w-64 flex flex-col gap-3 text-sm">
+                    <h3 className="font-bold text-gray-800 border-b pb-2">Ferramentas de Debug</h3>
+                    
+                    <div className="flex flex-col gap-1">
+                        <label className="text-xs font-semibold text-gray-600">Cor da Máscara (fundo):</label>
+                        <input 
+                            type="text" 
+                            value={debugMaskColor}
+                            onChange={(e) => setDebugMaskColor(e.target.value)}
+                            className="border rounded px-2 py-1 text-xs w-full font-mono bg-gray-50"
+                        />
+                    </div>
+
+                    <div className="bg-blue-50 text-blue-800 p-2 rounded text-xs leading-relaxed">
+                        Arraste os textos/imagens para a posição correta na garrafa. As réguas vermelhas indicam o limite exato do canvas 2D mapeado em 3D.
+                    </div>
+
+                    <button 
+                        onClick={handleLogPositions}
+                        className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-3 rounded text-xs transition-colors shadow-sm"
+                    >
+                        📋 Gravar Posições Originais (Log)
+                    </button>
+                </div>
+            )}
+
             {/* Zoom Controls removed as per request */}
 
             <div className={`flex-1 relative w-full h-full flex items-center justify-center overflow-hidden group bottle-preview-container ${hideCanvasBackground ? '' : 'bg-[#F8FAFC] rounded-[4rem] shadow-inner'}`}>
@@ -338,6 +387,12 @@ export const BottlePreview: React.FC<BottlePreviewProps> = ({
                                 pointerEvents: 'none',
                             }}
                         >
+                            {showDebug && (
+                                <div 
+                                    className="absolute inset-0 pointer-events-none mix-blend-multiply"
+                                    style={{ backgroundColor: debugMaskColor }}
+                                />
+                            )}
                             <div
                                 className="w-full h-full"
                                 style={{
@@ -364,8 +419,22 @@ export const BottlePreview: React.FC<BottlePreviewProps> = ({
                                             transform: `scale(${ENGINE_CONFIG.displayScale})`,
                                             transformOrigin: 'left top',
                                             willChange: 'transform',
+                                            ...(showDebug ? { border: '4px solid red' } : {})
                                         }}
                                     >
+                                        {/* RULERS FOR DEBUGGING */}
+                                        {showDebug && (
+                                            <>
+                                                {/* X Axis */}
+                                                <div className="absolute top-0 bottom-0 left-1/2 w-[8px] -ml-[4px] bg-red-500/50 z-0 pointer-events-none" />
+                                                {/* Y Axis */}
+                                                <div className="absolute left-0 right-0 top-1/2 h-[8px] -mt-[4px] bg-red-500/50 z-0 pointer-events-none" />
+                                                {/* Labels */}
+                                                <div className="absolute top-4 left-4 text-red-500 text-[120px] font-bold z-0 pointer-events-none">0,0</div>
+                                                <div className="absolute bottom-4 right-4 text-red-500 text-[120px] font-bold z-0 pointer-events-none">100,100</div>
+                                            </>
+                                        )}
+
                                         {layers.map((layer) => {
                                             if (!layer.visible) return null;
                                             const isSelected = selectedLayerId === layer.id;

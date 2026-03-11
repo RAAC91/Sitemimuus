@@ -202,17 +202,16 @@ export const TextControls: React.FC<TextControlsProps> = ({
                                             </div>
                                         </div>
 
-                                        {/* FLOATING PROPERTIES PANEL */}
+                                        {/* INLINE PROPERTIES PANEL */}
                                         <AnimatePresence>
                                             {isExpanded && (
                                                 <motion.div 
-                                                    initial={{ opacity: 0, x: 20, scale: 0.9, filter: "blur(10px)" }}
-                                                    animate={{ opacity: 1, x: 0, scale: 1, filter: "blur(0px)" }}
-                                                    exit={{ opacity: 0, x: 20, scale: 0.9, filter: "blur(10px)" }}
-                                                    transition={{ type: "spring", stiffness: 400, damping: 30 }}
-                                                    className="absolute right-[calc(100%+16px)] top-0 w-80 bg-white/95 backdrop-blur-xl rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.15)] border border-white/40 p-5 z-50 overflow-hidden"
+                                                    initial={{ opacity: 0, height: 0 }}
+                                                    animate={{ opacity: 1, height: 'auto' }}
+                                                    exit={{ opacity: 0, height: 0 }}
+                                                    transition={{ duration: 0.2 }}
+                                                    className="w-full mt-2 bg-slate-50 rounded-xl border border-slate-200 p-4 z-10 overflow-hidden"
                                                 >
-                                                    <div className="absolute top-0 left-0 w-full h-1 bg-linear-to-r from-[#FF3E00] to-[#FF8C00]" />
                                                     
                                                     {/* Panel header */}
                                                     <div className="flex items-center justify-between mb-4 pb-4 border-b border-slate-100">

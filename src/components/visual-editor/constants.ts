@@ -149,3 +149,9 @@ export interface HistoryState {
     layers: EditorLayer[];
     selectedLayerId: string | null;
 }
+
+export const MOBILE_DEFAULTS = {
+    TEXT: { x: 40.36, y: 57.81, rotation: -90, scale: 2 },
+    ICON: { x: 42.50, y: 18.25, rotation: -90, scale: 0.7 },
+    IMAGE: { x: 44.37, y: 100.00, rotation: 0, scale: 5.9 }
+};

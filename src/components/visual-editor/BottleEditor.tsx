@@ -5,10 +5,11 @@ import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { generateStickerDesign, removeImageBackground } from '@/services/ai/gemini';
-import { SKUS, ICON_CATEGORIES, EDITOR_COLORS, FONTS, type EditorLayer } from './constants';
+import { SKUS, ICON_CATEGORIES, EDITOR_COLORS, FONTS, type EditorLayer, MOBILE_DEFAULTS } from './constants';
 import { Icons } from './Icons';
 import { useEditorHistory } from './useEditorHistory';
 import { BottlePreview } from './BottlePreview';
+import { MobileBottlePreview } from './MobileBottlePreview';
 import { TextControls } from './TextControls';
 import { ImageControls } from './ImageControls';
 import { BottleColorPicker } from './BottleColorPicker';
@@ -23,6 +24,7 @@ import { toCanvas } from 'html-to-image';
 import { createProduct } from '@/actions/admin-actions';
 import { getProductById } from '@/actions/product-actions';
 import { ShowcaseModal } from './ShowcaseModal';
+import { DebugPreviewModal } from './DebugPreviewModal';
 // useLayerPositionFallback removed
 import { CartItem } from '@/types';
 import { useCartStore } from '@/store/cartStore';
@@ -68,8 +70,6 @@ export const BottleEditor: React.FC<BottleEditorProps> = ({ onAddToCart, onBack,
     const [selectedLayerId, setSelectedLayerId] = useState<string | null>(null);
     const [activeIconCat, setActiveIconCat] = useState(() => Object.keys(ICON_CATEGORIES)[0] ?? '');
     const [isBusy, setIsBusy] = useState(false);
-    const [aiPrompt, setAiPrompt] = useState('');
-    const [isAiLoading, setIsAiLoading] = useState(false);
     const [draftText, setDraftText] = useState('');
     const [showShowcase, setShowShowcase] = useState(false);
     const [showShareModal, setShowShareModal] = useState(false);
@@ -83,8 +83,10 @@ export const BottleEditor: React.FC<BottleEditorProps> = ({ onAddToCart, onBack,
     const [defaultTextPosition, setDefaultTextPosition] = useState<{ x: number; y: number }>(() => {
         if (typeof window !== 'undefined') {
             const saved = localStorage.getItem('mimuus_default_position_text');
-            // x=50% on HD canvas renders ~64% visually → back-calculate center: x≈39, y≈37
-            if (isMobileViewport()) return { x: 39, y: 50 };
+            // Mobile calibration (2025-03): HD canvas x=60%, y=45% aligns with the
+            // visual center of the bottle body in the 390×390 aspect-square preview.
+            // (Left edge ≈39%, center ≈60%, right edge ≈81% of the 2754px HD canvas.)
+            if (isMobileViewport()) return { x: MOBILE_DEFAULTS.TEXT.x, y: MOBILE_DEFAULTS.TEXT.y };
             return saved ? JSON.parse(saved) : { x: 39, y: 50 };
         }
         return { x: 39, y: 50 };
@@ -93,18 +95,35 @@ export const BottleEditor: React.FC<BottleEditorProps> = ({ onAddToCart, onBack,
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const [defaultImagePosition, setDefaultImagePosition] = useState<{ x: number; y: number }>(() => {
         if (typeof window !== 'undefined') {
-            // On mobile use same position as text
-            if (isMobileViewport()) return { x: 39, y: 50 };
+            if (isMobileViewport()) return { x: MOBILE_DEFAULTS.IMAGE.x, y: MOBILE_DEFAULTS.IMAGE.y }; // Mobile calibrated center
             const saved = localStorage.getItem('mimuus_default_position_image');
             return saved ? JSON.parse(saved) : { x: 50, y: 70 };
         }
         return { x: 50, y: 70 };
     });
+
+    const [defaultImageScale, setDefaultImageScale] = useState<number>(() => {
+        if (typeof window !== 'undefined') {
+            if (isMobileViewport()) return MOBILE_DEFAULTS.IMAGE.scale;
+            const saved = localStorage.getItem('mimuus_default_scale_image');
+            return saved ? JSON.parse(saved) : 1;
+        }
+        return 1;
+    });
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const [defaultImageRotation, setDefaultImageRotation] = useState<number>(() => {
+        if (typeof window !== 'undefined') {
+            if (isMobileViewport()) return MOBILE_DEFAULTS.IMAGE.rotation;
+            const saved = localStorage.getItem('mimuus_default_rotation_image');
+            return saved ? JSON.parse(saved) : 0;
+        }
+        return 0;
+    });
     
     const [defaultIconPosition, setDefaultIconPosition] = useState<{ x: number; y: number }>(() => {
         if (typeof window !== 'undefined') {
-            // On mobile use same position as text
-            if (isMobileViewport()) return { x: 39, y: 50 };
+            if (isMobileViewport()) return { x: MOBILE_DEFAULTS.ICON.x, y: MOBILE_DEFAULTS.ICON.y }; // Mobile calibrated center
             const saved = localStorage.getItem('mimuus_default_position_icon');
             return saved ? JSON.parse(saved) : { x: 63.1, y: 17.4 };
         }
@@ -113,7 +132,7 @@ export const BottleEditor: React.FC<BottleEditorProps> = ({ onAddToCart, onBack,
     const [defaultIconSize, setDefaultIconSize] = useState(() => {
         if (typeof window !== 'undefined') {
             // On mobile scale down for the 1:1 square preview
-            if (isMobileViewport()) return 80;
+            if (isMobileViewport()) return Number(MOBILE_DEFAULTS.ICON.scale) * 100;
             const saved = localStorage.getItem('mimuus_default_size_icon');
             return saved ? Number(saved) : 116;
         }
@@ -121,8 +140,8 @@ export const BottleEditor: React.FC<BottleEditorProps> = ({ onAddToCart, onBack,
     });
     const [defaultIconRotation, setDefaultIconRotation] = useState(() => {
         if (typeof window !== 'undefined') {
-            // On mobile never apply the desktop-calibrated rotation (e.g. -90°)
-            if (isMobileViewport()) return 0;
+            // On mobile apply the calibrated rotation
+            if (isMobileViewport()) return MOBILE_DEFAULTS.ICON.rotation;
             const saved = localStorage.getItem('mimuus_default_rotation_icon');
             return saved ? Number(saved) : -90;
         }
@@ -132,6 +151,7 @@ export const BottleEditor: React.FC<BottleEditorProps> = ({ onAddToCart, onBack,
     
     // ADMIN FLOW - New simplified approach
     const [showCapturePreview, setShowCapturePreview] = useState(false);
+    const [showDebugPreview, setShowDebugPreview] = useState(false);
     const [showAdminModal, setShowAdminModal] = useState(false);
     const [adminPreviewImage, setAdminPreviewImage] = useState<string | null>(null);
 
@@ -152,7 +172,7 @@ export const BottleEditor: React.FC<BottleEditorProps> = ({ onAddToCart, onBack,
         const handleResize = () => {
             setDefaultTextPosition(prev => {
                 const mobile = isMobileViewport();
-                if (mobile && prev.y > 80) return { x: 39, y: 50 };
+                if (mobile && prev.y > 80) return { x: 60, y: 45 }; // Mobile calibrated center
                 if (!mobile && prev.y < 80) return { x: 50, y: 90 };
                 return prev;
             });
@@ -440,32 +460,6 @@ export const BottleEditor: React.FC<BottleEditorProps> = ({ onAddToCart, onBack,
         });
     };
 
-    const handleAiGenerate = async () => {
-        if (!aiPrompt.trim()) return;
-        setIsAiLoading(true);
-        try {
-            const res = await generateStickerDesign(aiPrompt);
-            addLayer({
-                id: uuidv4(), type: 'image', visible: true, content: res,
-                size: 1000, rotation: 0, x: defaultImagePosition.x, y: defaultImagePosition.y, mode: 'center', isBgClean: true 
-            });
-            setAiPrompt('');
-            addXP(200, 'Criador IA');
-        } catch (error) { console.error(error); alert('Erro IA'); }
-        finally { setIsAiLoading(false); }
-    };
-
-    const handleAiBackgroundRemoval = async (id: string) => {
-        const layer = layers.find(l => l.id === id);
-        if (!layer) return;
-        setIsBusy(true);
-        try {
-            const clean = await removeImageBackground(layer.content);
-            updateLayer(id, { content: clean, isBgClean: true });
-        } catch (error) { console.error(error); }
-        finally { setIsBusy(false); }
-    };
-
     const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
             const reader = new FileReader();
@@ -633,9 +627,14 @@ export const BottleEditor: React.FC<BottleEditorProps> = ({ onAddToCart, onBack,
                 {/* RIGHT: Actions */}
                 <div className="flex items-center gap-1.5 lg:gap-2">
                     {isAdmin && (
-                        <button onClick={() => setShowCalibration(!showCalibration)} className="hidden lg:flex items-center justify-center w-8 h-8 rounded-[8px] bg-slate-100 hover:bg-slate-200 transition-all" title="Monitor">
-                            <Icons.Settings className={`w-4 h-4 ${showCalibration ? 'text-[#FF4586]' : 'text-slate-400'}`} />
-                        </button>
+                        <>
+                            <button onClick={() => setShowDebugPreview(true)} className="hidden lg:flex items-center justify-center w-8 h-8 rounded-[8px] bg-slate-100 hover:bg-slate-200 transition-all" title="Debug PDF">
+                                <Icons.Eye className="w-4 h-4 text-slate-400" />
+                            </button>
+                            <button onClick={() => setShowCalibration(!showCalibration)} className="hidden lg:flex items-center justify-center w-8 h-8 rounded-[8px] bg-slate-100 hover:bg-slate-200 transition-all" title="Monitor">
+                                <Icons.Settings className={`w-4 h-4 ${showCalibration ? 'text-[#FF4586]' : 'text-slate-400'}`} />
+                            </button>
+                        </>
                     )}
                     <div className="h-4 w-px bg-slate-200 hidden sm:block mx-1"></div>
                     <button onClick={() => undo(s => { setSku(s.sku); setLayers(s.layers); setSelectedLayerId(s.selectedLayerId); })} disabled={!canUndo} className="p-1.5 rounded-[8px] hover:bg-slate-100 transition-colors text-slate-400 disabled:opacity-30" title="Desfazer">
@@ -683,15 +682,11 @@ export const BottleEditor: React.FC<BottleEditorProps> = ({ onAddToCart, onBack,
 
                     {/* ── Sticky bottle preview ─────────────── */}
                     <div className="shrink-0 w-full aspect-square relative overflow-hidden bg-transparent">
-                        <BottlePreview
+                        <MobileBottlePreview
                             sku={sku} lidColor={lidColor} layers={layers}
                             selectedLayerId={selectedLayerId} isBusy={isBusy}
-                            onUndo={() => {}} onRedo={() => {}} onReset={() => {}}
-                            canUndo={canUndo} canRedo={canRedo}
                             onSelectLayer={handleSelectLayer} onUpdateLayer={updateLayer}
                             draftText={draftText} draftTextPosition={defaultTextPosition}
-                            hideCanvasBackground={true}
-                            hideUI={true}
                         />
                     </div>
 
@@ -824,10 +819,6 @@ export const BottleEditor: React.FC<BottleEditorProps> = ({ onAddToCart, onBack,
                                                 className="flex-1 py-2.5 rounded-xl bg-white border border-slate-200 text-slate-600 text-xs font-bold hover:bg-slate-100 transition-colors">
                                                 Espelhar
                                             </button>
-                                            <button onClick={() => handleAiBackgroundRemoval(selectedLayer.id)} disabled={isBusy}
-                                                className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-colors ${selectedLayer.isBgClean ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'}`}>
-                                                {selectedLayer.isBgClean ? '✨ Fundo OK' : '🪄 Rem. Fundo'}
-                                            </button>
                                             <button title="Remover camada" onClick={() => { deleteLayer(selectedLayer.id); handleSelectLayer(null); }}
                                                 className="py-2.5 px-4 flex items-center justify-center rounded-xl bg-red-100 border border-red-200 text-red-600 text-xs font-bold hover:bg-red-200 shadow-sm active:scale-95 transition-all">
                                                 <Icons.Trash className="w-4 h-4" />
@@ -839,8 +830,6 @@ export const BottleEditor: React.FC<BottleEditorProps> = ({ onAddToCart, onBack,
                                     <ImageControls
                                         layers={layers} expandedLayerId={selectedLayerId} onExpandLayer={handleSelectLayer}
                                         onUpdateLayer={updateLayer} onAddImage={handleAddImage} onDeleteLayer={deleteLayer}
-                                        isBusy={isBusy} aiPrompt={aiPrompt} setAiPrompt={setAiPrompt} isAiLoading={isAiLoading}
-                                        handleAiGenerate={handleAiGenerate} handleAiBackgroundRemoval={handleAiBackgroundRemoval}
                                         handleUpload={handleUpload} hideAddSection={false}
                                     />
                                 </div>
@@ -1151,6 +1140,9 @@ export const BottleEditor: React.FC<BottleEditorProps> = ({ onAddToCart, onBack,
 
                         {/* Safe area */}
                         <div className="h-6" />
+
+                        {/* Portal container for Debug Tools (Dev Only) */}
+                        <div id="debug-container-mobile" />
                     </div>
                 </div>
                 );
@@ -1226,171 +1218,7 @@ export const BottleEditor: React.FC<BottleEditorProps> = ({ onAddToCart, onBack,
                             {/* Desktop wrapper keeps square within available height */}
                             <div className="hidden lg:block aspect-square h-full max-h-full max-w-full relative">
                                 {/* Property Panels docked to the bottle (16px gap) */}
-                                <AnimatePresence>
-                                    {isPanelLeft && selectedLayer && (
-                                        <motion.div
-                                            key="img-panel"
-                                            initial={{ opacity: 0, x: 20 }}
-                                            animate={{ opacity: 1, x: 0 }}
-                                            exit={{ opacity: 0, x: 20 }}
-                                            transition={{ type: 'spring', stiffness: 380, damping: 32 }}
-                                            className="absolute left-full ml-4 top-1/2 -translate-y-1/2 w-[260px] editor-float-panel rounded-[8px] p-4 z-30 flex flex-col gap-4 shadow-xl border border-slate-200"
-                                        >
-                                            <div className="flex items-center gap-2.5">
-                                                <div className="w-8 h-8 rounded-[6px] overflow-hidden bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0">
-                                                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                                                    <img src={selectedLayer.content} alt="" className="max-w-full max-h-full object-contain" />
-                                                </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <p className="text-[11px] font-black text-slate-700 uppercase tracking-widest leading-none">Propriedades</p>
-                                                    <p className="text-[10px] text-indigo-500 font-bold mt-0.5">{selectedLayer.type === 'icon' ? 'Ícone' : 'Imagem'}</p>
-                                                </div>
-                                                <button title="Fechar painel" onClick={() => handleSelectLayer(null)} className="w-6 h-6 rounded-[6px] bg-slate-100 hover:bg-red-50 hover:text-red-500 transition-all flex items-center justify-center text-slate-400">
-                                                    <Icons.X className="w-3 h-3" />
-                                                </button>
-                                            </div>
-                                            <div className="w-full h-px bg-slate-200" />
-                                            <div className="flex flex-col gap-2">
-                                                <div className="flex justify-between">
-                                                    <span className="section-label-dark mb-0">Aumentar / Diminuir ↕</span>
-                                                    <span className="text-[11px] font-bold text-indigo-500">{Math.round((selectedLayer.size - 1000) / 10)}%</span>
-                                                </div>
-                                                <input type="range" min="-100" max="100" value={(selectedLayer.size - 1000) / 10}
-                                                    title="Aumentar ou Diminuir" onChange={e => updateLayer(selectedLayer.id, { size: (Number(e.target.value) * 10) + 1000 })}
-                                                    className="slider-track-dark" />
-                                            </div>
-                                            <div className="flex flex-col gap-2">
-                                                <div className="flex justify-between">
-                                                    <span className="section-label-dark mb-0">Gire a imagem 🔄</span>
-                                                    <span className="text-[11px] font-bold text-indigo-500">{selectedLayer.rotation ?? 0}°</span>
-                                                </div>
-                                                <input type="range" min="-180" max="180" value={selectedLayer.rotation ?? 0}
-                                                    title="Girar imagem" onChange={e => updateLayer(selectedLayer.id, { rotation: Number(e.target.value) })}
-                                                    className="slider-track-dark" />
-                                            </div>
-                                            <div className="flex flex-col gap-2">
-                                                <div className="flex justify-between">
-                                                    <span className="section-label-dark mb-0">Esticar ↕</span>
-                                                    <span className="text-[11px] font-bold text-indigo-500">{Math.round((selectedLayer.scaleY ?? 1) * 100) - 100}%</span>
-                                                </div>
-                                                <input type="range" min="-100" max="100" value={Math.round((selectedLayer.scaleY ?? 1) * 100) - 100}
-                                                    title="Esticar altura" onChange={e => updateLayer(selectedLayer.id, { scaleY: Math.max(0.1, (Number(e.target.value) + 100) / 100) })}
-                                                    className="slider-track-dark" />
-                                            </div>
-                                            <div className="flex flex-col gap-2">
-                                                <div className="flex justify-between">
-                                                    <span className="section-label-dark mb-0">Esticar ↔</span>
-                                                    <span className="text-[11px] font-bold text-indigo-500">{Math.round((selectedLayer.scaleX ?? 1) * 100) - 100}%</span>
-                                                </div>
-                                                <input type="range" min="-100" max="100" value={Math.round((selectedLayer.scaleX ?? 1) * 100) - 100}
-                                                    title="Esticar largura" onChange={e => updateLayer(selectedLayer.id, { scaleX: Math.max(0.1, (Number(e.target.value) + 100) / 100) })}
-                                                    className="slider-track-dark" />
-                                            </div>
-                                            <div className="flex flex-col gap-2 pt-1">
-                                                {selectedLayer.type === 'image' && (
-                                                    <button onClick={() => handleAiBackgroundRemoval(selectedLayer.id)} disabled={isBusy}
-                                                        className={`w-full py-2 px-3 rounded-[8px] font-bold text-xs flex items-center justify-center gap-1.5 transition-all ${
-                                                            selectedLayer.isBgClean ? 'bg-emerald-50 text-emerald-600 border border-emerald-200 cursor-default' : 'bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100 cursor-pointer'
-                                                        }`}>
-                                                        {selectedLayer.isBgClean ? '✨ Fundo Removido' : '🪄 Remover Fundo'}
-                                                    </button>
-                                                )}
-                                                <button onClick={() => updateLayer(selectedLayer.id, { isMirrored: !selectedLayer.isMirrored })}
-                                                    className="w-full py-2 px-3 rounded-[8px] bg-slate-50 border border-slate-200 hover:bg-slate-100 text-slate-600 text-xs font-bold transition-colors">
-                                                    Espelhar
-                                                </button>
-                                                <button onClick={() => { deleteLayer(selectedLayer.id); handleSelectLayer(null); }}
-                                                    className="w-full py-2 text-red-500 text-xs font-bold hover:bg-red-50 rounded-[8px] transition-colors">
-                                                    Excluir Camada
-                                                </button>
-                                            </div>
-                                        </motion.div>
-                                    )}
-                                    {isPanelRight && selectedLayer && (
-                                        <motion.div
-                                            key="txt-panel"
-                                            initial={{ opacity: 0, x: -20 }}
-                                            animate={{ opacity: 1, x: 0 }}
-                                            exit={{ opacity: 0, x: -20 }}
-                                            transition={{ type: 'spring', stiffness: 380, damping: 32 }}
-                                            className="absolute right-full mr-4 top-1/2 -translate-y-1/2 w-[260px] editor-float-panel rounded-[8px] p-4 z-30 flex flex-col gap-4 shadow-xl border border-slate-200"
-                                        >
-                                            <div className="flex items-center gap-2.5">
-                                                <div className="w-8 h-8 rounded-[6px] bg-linear-to-br from-rose-400 to-orange-400 flex items-center justify-center shrink-0">
-                                                    <Icons.Type className="w-3.5 h-3.5 text-white" />
-                                                </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <p className="text-[11px] font-black text-slate-700 uppercase tracking-widest leading-none">Texto</p>
-                                                    <p className="text-[10px] text-rose-500 font-bold mt-0.5 truncate">{selectedLayer.content}</p>
-                                                </div>
-                                                <button title="Fechar painel" onClick={() => handleSelectLayer(null)} className="w-6 h-6 rounded-[6px] bg-slate-100 hover:bg-red-50 hover:text-red-500 transition-all flex items-center justify-center text-slate-400">
-                                                    <Icons.X className="w-3 h-3" />
-                                                </button>
-                                            </div>
-                                            <div className="w-full h-px bg-slate-200" />
-                                            <div className="flex flex-col gap-1.5">
-                                                <span className="section-label-dark mb-0">Conteúdo</span>
-                                                <input type="text" title="Conteúdo do texto" placeholder="Digite o texto..." value={selectedLayer.content}
-                                                    onChange={e => updateLayer(selectedLayer.id, { content: e.target.value })}
-                                                    className="w-full bg-slate-50 border border-slate-200 rounded-[8px] px-3 py-2 text-sm font-bold text-slate-800 outline-none focus:border-rose-400 transition-colors" />
-                                            </div>
-                                            <div className="flex flex-col gap-2">
-                                                <div className="flex justify-between">
-                                                    <span className="section-label-dark mb-0">Tamanho</span>
-                                                    <span className="text-[11px] font-bold text-rose-500">{selectedLayer.size}%</span>
-                                                </div>
-                                                <input type="range" min="10" max="1000" value={selectedLayer.size}
-                                                    title="Tamanho do texto" onChange={e => updateLayer(selectedLayer.id, { size: Number(e.target.value) })}
-                                                    className="slider-track-dark" />
-                                            </div>
-                                            <div className="flex flex-col gap-2">
-                                                <div className="flex justify-between">
-                                                    <span className="section-label-dark mb-0">Rotação</span>
-                                                    <span className="text-[11px] font-bold text-rose-500">{selectedLayer.rotation ?? 0}°</span>
-                                                </div>
-                                                <input type="range" min="-180" max="180" value={selectedLayer.rotation ?? 0}
-                                                    title="Rotação do texto" onChange={e => updateLayer(selectedLayer.id, { rotation: Number(e.target.value) })}
-                                                    className="slider-track-dark" />
-                                            </div>
-                                            <div className="flex gap-1.5">
-                                                <button onClick={() => updateLayer(selectedLayer.id, { underline: !selectedLayer.underline })}
-                                                    className={`flex-1 p-2 rounded-[8px] border transition-all flex items-center justify-center ${selectedLayer.underline ? 'bg-rose-50 border-rose-300 text-rose-500' : 'bg-slate-50 border-slate-200 text-slate-400 hover:bg-slate-100'}`}
-                                                    title="Sublinhado"><Icons.Underline className="w-3.5 h-3.5" /></button>
-                                                <button onClick={() => updateLayer(selectedLayer.id, { italic: !selectedLayer.italic })}
-                                                    className={`flex-1 p-2 rounded-[8px] border transition-all flex items-center justify-center ${selectedLayer.italic ? 'bg-rose-50 border-rose-300 text-rose-500' : 'bg-slate-50 border-slate-200 text-slate-400 hover:bg-slate-100'}`}
-                                                    title="Itálico"><Icons.Italic className="w-3.5 h-3.5" /></button>
-                                                <button onClick={() => updateLayer(selectedLayer.id, { stroke: !selectedLayer.stroke })}
-                                                    className={`flex-1 p-2 rounded-[8px] border transition-all flex items-center justify-center ${selectedLayer.stroke ? 'bg-rose-50 border-rose-300 text-rose-500' : 'bg-slate-50 border-slate-200 text-slate-400 hover:bg-slate-100'}`}
-                                                    title="Contorno"><Icons.Bold className="w-3.5 h-3.5" /></button>
-                                            </div>
-                                            <div className="flex flex-col gap-2">
-                                                <span className="section-label-dark mb-0">Cor</span>
-                                                <div className="grid grid-cols-7 gap-1.5">
-                                                    {EDITOR_COLORS.slice(0, 14).map((c) => (
-                                                        <button key={c.name} onClick={() => updateLayer(selectedLayer.id, { color: c.valor })}
-                                                            className={`w-7 h-7 rounded-full border-2 transition-all ${selectedLayer.color === c.valor ? 'border-rose-400 scale-110 shadow-md' : 'border-slate-200 hover:scale-105'}`}
-                                                            style={(c as any).style || { backgroundColor: c.valor }} title={c.name} />
-                                                    ))}
-                                                </div>
-                                            </div>
-                                            <div className="flex flex-col gap-2">
-                                                <span className="section-label-dark mb-0">Fonte</span>
-                                                <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto custom-scrollbar">
-                                                    {FONTS.map((f) => (
-                                                        <button key={f.name} onClick={() => updateLayer(selectedLayer.id, { font: f.family })}
-                                                            style={{ fontFamily: f.family }}
-                                                            className={`px-2.5 py-1 rounded-[8px] text-[10px] font-bold border transition-all ${selectedLayer.font === f.family ? 'bg-rose-50 border-rose-300 text-rose-600' : 'bg-slate-50 border-slate-200 text-slate-500 hover:bg-slate-100'}`}
-                                                        >{f.name}</button>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                            <button onClick={() => { deleteLayer(selectedLayer.id); handleSelectLayer(null); }}
-                                                className="w-full py-2 text-red-500 text-xs font-bold hover:bg-red-50 rounded-[8px] transition-colors">
-                                                Excluir Camada
-                                            </button>
-                                        </motion.div>
-                                    )}
-                                </AnimatePresence>
+                                {/* Removed floating Property Panels */}
                                 <BottlePreview
                                     sku={sku} lidColor={lidColor} layers={layers} selectedLayerId={selectedLayerId} isBusy={isBusy}
                                     onUndo={() => {}} onRedo={() => {}} onReset={() => {}}
@@ -1424,9 +1252,7 @@ export const BottleEditor: React.FC<BottleEditorProps> = ({ onAddToCart, onBack,
                         <ImageControls
                             layers={layers} expandedLayerId={selectedLayerId} onExpandLayer={handleSelectLayer}
                             onUpdateLayer={updateLayer} onAddImage={handleAddImage} onDeleteLayer={deleteLayer}
-                            isBusy={isBusy} aiPrompt={aiPrompt} setAiPrompt={setAiPrompt} isAiLoading={isAiLoading}
-                            handleAiGenerate={handleAiGenerate} handleAiBackgroundRemoval={handleAiBackgroundRemoval} handleUpload={handleUpload}
-                            hideAddSection={false}
+                            handleUpload={handleUpload} hideAddSection={false}
                         />
                     </div>
                     <button className="lg:hidden mt-3 shrink-0 w-full py-2.5 bg-slate-100 rounded-xl font-bold text-slate-600 border border-slate-200 text-sm" onClick={() => setActiveMobileTab(null)}>Fechar</button>
@@ -1443,6 +1269,16 @@ export const BottleEditor: React.FC<BottleEditorProps> = ({ onAddToCart, onBack,
                 <CaptureCalibrationModal 
                     isOpen={showCapturePreview} onClose={() => setShowCapturePreview(false)} onConfirmCapture={handleConfirmCapture}
                     sku={sku} lidColor={lidColor} layers={layers} isBusy={isBusy} defaultTextPosition={defaultTextPosition}
+                />
+            )}
+
+            {isAdmin && (
+                <DebugPreviewModal 
+                    isOpen={showDebugPreview} 
+                    onClose={() => setShowDebugPreview(false)} 
+                    sku={sku} 
+                    lidColor={lidColor} 
+                    layers={layers} 
                 />
             )}
 

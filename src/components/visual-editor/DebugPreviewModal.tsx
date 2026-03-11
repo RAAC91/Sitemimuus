@@ -10,11 +10,12 @@ interface DebugPreviewModalProps {
     isOpen: boolean;
     onClose: () => void;
     sku: string;
+    lidColor: string;
     layers: EditorLayer[];
-    onConfirmCapture: () => void;
+    onConfirmCapture?: () => void;
 }
 
-export const DebugPreviewModal: React.FC<DebugPreviewModalProps> = ({ isOpen, onClose, sku, layers, onConfirmCapture }) => {
+export const DebugPreviewModal: React.FC<DebugPreviewModalProps> = ({ isOpen, onClose, sku, lidColor, layers, onConfirmCapture }) => {
     // Ref para captura local de teste (opcional, se quiser testar download direto)
     const previewRef = React.useRef<HTMLDivElement>(null);
 
@@ -85,6 +86,7 @@ export const DebugPreviewModal: React.FC<DebugPreviewModalProps> = ({ isOpen, on
                                 <div style={{ height: '484px', width: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }} ref={previewRef}>
                                     <BottlePreview 
                                         sku={sku} 
+                                        lidColor={lidColor}
                                         layers={layers} 
                                         selectedLayerId={null} 
                                         isBusy={false}
